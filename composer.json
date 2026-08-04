@@ -1,5 +1,5 @@
 {
-  "name": "stevekanger/php-cs-fixer-fixers",
+  "name": "stevekanger/sk-php-cs-fixers",
   "description": "Custom fixers for php-cs-fixer.",
   "license": "MIT",
   "autoload": {
