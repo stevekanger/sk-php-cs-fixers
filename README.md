@@ -17,6 +17,8 @@ Then you can configure your custom fixer in `.php-cs-fixer.php`. See [Php-cs-fix
 
 use SkPhpCsFixers\Fixer\CustomFixer;
 
+require __DIR__ . '/vendor/autoload.php'
+
 $rules = [
     'SkPhpCsFixers/custom_fixer' => true,
 ];
