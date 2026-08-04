@@ -18,10 +18,12 @@ use PhpCsFixer\FixerDefinition\FixerDefinitionInterface;
 use PhpCsFixer\Tokenizer\CT;
 use PhpCsFixer\Tokenizer\Token;
 use PhpCsFixer\Tokenizer\Tokens;
+use SkPhpCsFixers\Traits\TokenHelpersTrait;
 
 final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFixerInterface, ConfigurableFixerInterface {
     use ConfigurableFixerTrait;
     use IndentationTrait;
+    use TokenHelpersTrait;
 
     private const FORMAT_TYPE_IGNORE = 'ignore';
     private const FORMAT_TYPE_MULTILINE = 'multiline';
@@ -167,7 +169,7 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
         $isEmpty = true;
 
         for ($index = $openIndex + 1; $index < $closeIndex; ++$index) {
-            if ($this->isNewline($tokens[$index])) {
+            if ($this->tokenIsNewline($tokens[$index])) {
                 $isSingleline = false;
             } elseif (!$tokens[$index]->isWhitespace()) {
                 $isEmpty = false;
@@ -215,7 +217,7 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
      * Ensures an empty array is on a single line with no spaces.
      */
     private function ensureEmptySingleline(Tokens $tokens, int $openIndex, int $closeIndex): int {
-        $this->clearRange($tokens, $openIndex + 1, $closeIndex - 1);
+        $this->tokensClearRange($tokens, $openIndex + 1, $closeIndex - 1);
 
         return $closeIndex;
     }
@@ -280,7 +282,7 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
         $targetIndex = $index + 1;
 
         if (!$tokens[$targetIndex]->isWhitespace() && !$tokens[$targetIndex]->isGivenKind(\T_COMMENT)) {
-            $this->insertAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
+            $this->tokensInsertAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
             ++$closeIndex;
 
             return $targetIndex + 1;
@@ -294,9 +296,9 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
         }
 
         if ($tokens[$targetIndex]->isWhitespace()) {
-            $this->replaceAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
+            $this->tokensReplaceAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
         } else {
-            $this->insertAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
+            $this->tokensInsertAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
             ++$closeIndex;
         }
 
@@ -306,7 +308,7 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
             [\T_WHITESPACE],
         );
 
-        $this->clearRange($tokens, $targetIndex + 1, $nextNonWhitespace - 1);
+        $this->tokensClearRange($tokens, $targetIndex + 1, $nextNonWhitespace - 1);
 
         return $nextNonWhitespace - 1;
     }
@@ -320,13 +322,13 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
         $targetIndex = $index - 1;
 
         if (!$tokens[$targetIndex]->isWhitespace()) {
-            $this->insertAt($tokens, $index, \T_WHITESPACE, $lineEndIndent);
+            $this->tokensInsertAt($tokens, $index, \T_WHITESPACE, $lineEndIndent);
             ++$closeIndex;
 
             return $index + 1;
         }
 
-        $this->replaceAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
+        $this->tokensReplaceAt($tokens, $targetIndex, \T_WHITESPACE, $lineEndIndent);
 
         $prevNonWhitespace = $tokens->getTokenNotOfKindsSibling(
             $targetIndex,
@@ -334,43 +336,9 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
             [\T_WHITESPACE],
         );
 
-        $this->clearRange($tokens, $prevNonWhitespace + 1, $targetIndex - 1);
+        $this->tokensClearRange($tokens, $prevNonWhitespace + 1, $targetIndex - 1);
 
         return $index;
-    }
-
-    /**
-     * Clears all tokens in a range. Optionally skip indexes.
-     */
-    private function clearRange(Tokens $tokens, int $start, int $end, array $exclude = []): void {
-        for ($index = $start; $index <= $end; ++$index) {
-            if ($exclude && \in_array($index, $exclude, true)) {
-                continue;
-            }
-            $tokens->clearAt($index);
-        }
-    }
-
-    /**
-     * Replaces a token at an index.
-     */
-    private function replaceAt(Tokens $tokens, int $index, int $key, string $content, string $debug_key = ''): void {
-        if ($tokens[$index]->getContent() === $content) {
-            return;
-        }
-
-        $tokens[$index] = new Token([$key, $content]);
-    }
-
-    /**
-     * Inserts a token at an index.
-     */
-    private function insertAt(Tokens $tokens, int $index, int $key, string $content, string $debug_key = ''): void {
-        if ($tokens[$index]->getContent() === $content) {
-            return;
-        }
-
-        $tokens->insertAt($index, new Token([$key, $content]));
     }
 
     /**
@@ -390,7 +358,7 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
                 continue;
             }
 
-            if (!$token->isWhitespace() || $this->isNewline($token)) {
+            if (!$token->isWhitespace() || $this->tokenIsNewline($token)) {
                 break;
             }
         }
@@ -457,12 +425,5 @@ final class ArrayFormatFixer extends AbstractFixer implements WhitespacesAwareFi
         $elementLineEndIndent = $lineEnd . $elementIndent;
 
         return [$baseLineEndIndent, $elementLineEndIndent];
-    }
-
-    /**
-     * Checks if a token is a new line character.
-     */
-    private function isNewline(Token $token): bool {
-        return $token->isWhitespace() && str_contains($token->getContent(), "\n");
     }
 }
