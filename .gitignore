@@ -1,0 +1,4 @@
+/.phpunit.result.cache
+/debug.log
+/vendor
+/local
