@@ -61,8 +61,8 @@ final class HtmlTokenizer {
     private array $tokensPending = [];
     private int $depthOffset = 0;
     private array $tagStack = [];
-    private ?StartTag $currentStartTag = null;
-    private ?EndTag $currentEndTag = null;
+    private ?OpenTag $currentOpenTag = null;
+    private ?CloseTag $currentCloseTag = null;
 
     public const VOID_TAGS = [
         'area',
@@ -236,6 +236,10 @@ final class HtmlTokenizer {
 
     /**
      * Checks if a substring starts with.
+     *
+     * @param int $pos
+     * @param string $needle
+     * @param bool $case_insensitive
      */
     private function posStartsWith(int $pos, string $needle, bool $case_insensitive = false): bool {
         return 0 === substr_compare($this->input, $needle, $pos, strlen($needle), $case_insensitive);
@@ -715,7 +719,7 @@ final class HtmlTokenizer {
         if ($this->isAsciiAlpha($char)) {
             $this->emitPending();
             $this->emit(HT::HtmlOpenTagStart);
-            $this->currentStartTag = new StartTag();
+            $this->currentOpenTag = new OpenTag();
             $this->reconsume(State::OpenTagName);
 
             return;
@@ -759,7 +763,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        $this->currentStartTag?->appendName($char);
+        $this->currentOpenTag?->appendName($char);
         $this->appendBuffer($char);
     }
 
@@ -807,7 +811,7 @@ final class HtmlTokenizer {
             $this->appendBuffer('>');
             $this->emit(HT::HtmlOpenTagEnd);
 
-            if ($this->currentStartTag && in_array($this->currentStartTag->getName(), self::RAWTEXT_TAGS)) {
+            if ($this->currentOpenTag && in_array($this->currentOpenTag->getName(), self::RAWTEXT_TAGS)) {
                 $this->setState(State::BeforeRawtext);
             } else {
                 $this->setState(State::BeforeData);
@@ -1006,7 +1010,7 @@ final class HtmlTokenizer {
         if ('>' === $char) {
             $this->appendBuffer('>');
             $this->emit(HT::HtmlOpenTagEnd);
-            $this->currentStartTag?->setSelfClosing(true);
+            $this->currentOpenTag?->setSelfClosing(true);
             $this->setState(State::BeforeData);
 
             return;
@@ -1452,7 +1456,7 @@ final class HtmlTokenizer {
         $this->expectedBuffer(State::Rawtext, ExpectedFlag::Any);
 
         if ('<' === $char) {
-            if ($this->currentStartTag) {
+            if ($this->currentOpenTag) {
                 [$buffer, $whitespace] = $this->trimTrailingWhitespace($this->flushBuffer());
 
                 // add pending rawtext
@@ -1599,11 +1603,11 @@ final class HtmlTokenizer {
                 }
             }
 
-            if ($this->currentStartTag?->getName() === $tagName) {
+            if ($this->currentOpenTag?->getName() === $tagName) {
                 $this->emitPending();
                 $this->appendBuffer($char);
                 $this->emit(HT::HtmlCloseTagEnd);
-                $this->currentStartTag = null;
+                $this->currentOpenTag = null;
                 $this->setState(State::BeforeData);
             } else {
                 $this->appendBuffer($this->flushPending());
