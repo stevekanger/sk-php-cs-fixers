@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use SkPhpCsFixers\Fixer\ArrayNotation\ArrayFormatFixer;
+
 require __DIR__ . '/vendor/autoload.php';
 
 $rules = [
@@ -104,6 +106,6 @@ return (new PhpCsFixer\Config())
     ->setRules($rules)
     ->setRiskyAllowed(true)
     ->registerCustomFixers([
-        new SkPhpCsFixers\Fixer\ArrayNotation\ArrayFormatFixer(),
+        new ArrayFormatFixer(),
     ])
     ->setFinder($finder);
