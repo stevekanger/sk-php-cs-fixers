@@ -45,15 +45,46 @@ $rules = [
     'single_line_throw' => false,
     // Replace superfluous else if
     'no_superfluous_elseif' => true,
-    // Align php doc to the left
+    // Set PHPUnit method casing to match project
+    'php_unit_method_casing' => [
+        'case' => 'snake_case',
+    ],
+    // Allow params without descriptions
+    'no_superfluous_phpdoc_tags' => false,
+    // Add any missing params to phpdoc
+    'phpdoc_add_missing_param_annotation' => [
+        'only_untyped' => false,
+    ],
+    // Align PHPDoc to the left
     'phpdoc_align' => [
         'align' => 'left',
     ],
-    // Allow sentences in phpdoc descriptions
+    // PHPDoc annotation descriptions should not be full sentences
     'phpdoc_annotation_without_dot' => false,
+    // Set order for PHPDoc params
+    'phpdoc_order' => [
+        'order' => [
+            'param',
+            'return',
+            'throws',
+            'since',
+        ],
+    ],
+    // order params in the order they are declared
+    'phpdoc_param_order' => true,
+    // Require PHPDoc summary to end with punctuation
+    'phpdoc_summary' => true,
     // Set statements that require blank lines before
     'blank_line_before_statement' => [
-        'statements' => ['break', 'continue', 'declare', 'if', 'return', 'throw', 'try'],
+        'statements' => [
+            'break',
+            'continue',
+            'declare',
+            'if',
+            'return',
+            'throw',
+            'try',
+        ],
     ],
     // Custom fixers
     'array_indentation' => false,
