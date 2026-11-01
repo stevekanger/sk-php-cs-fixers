@@ -19,10 +19,10 @@ class Indent {
     /**
      * Pushes to the tag stack.
      *
-     * @param bool $val The value to push
+     * @param OpenTag $tag The tag to push
      */
-    public function tagsPush(bool $val): static {
-        array_push($this->tags, $val);
+    public function tagsPush(OpenTag $tag): static {
+        array_push($this->tags, $tag);
 
         return $this;
     }
@@ -30,7 +30,7 @@ class Indent {
     /**
      * Pops from the tag stack.
      */
-    public function tagsPop(): bool {
+    public function tagsPop(): ?OpenTag {
         return array_pop($this->tags);
     }
 

@@ -13,6 +13,9 @@ class HtmlFormatter {
     use IndentationTrait;
     use TokenHelpersTrait;
 
+    private ?OpenTag $openTag = null;
+    private ?CloseTag $closeTag = null;
+
     /**
      * Formats the html token based on kind.
      *
@@ -87,6 +90,8 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlOpenTagStart(HtmlToken $token, HtmlFormatData $data): string {
+        $this->openTag = new OpenTag();
+
         return $token->content;
     }
 
@@ -97,6 +102,12 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlOpenTagEnd(HtmlToken $token, HtmlFormatData $data): string {
+        if ($this->openTag) {
+            $data->indent->tagsPush($this->openTag);
+        }
+
+        $this->openTag = null;
+
         return $token->content;
     }
 
@@ -107,6 +118,8 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlCloseTagStart(HtmlToken $token, HtmlFormatData $data): string {
+        $this->closeTag = new CloseTag();
+
         return $token->content;
     }
 
@@ -117,6 +130,9 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlCloseTagEnd(HtmlToken $token, HtmlFormatData $data): string {
+        $data->indent->tagsPop();
+        $this->closeTag = null;
+
         return $token->content;
     }
 
@@ -137,6 +153,8 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlOpenTagName(HtmlToken $token, HtmlFormatData $data): string {
+        $this->openTag?->setName($token->content);
+
         return $token->content;
     }
 
@@ -147,6 +165,8 @@ class HtmlFormatter {
      * @param HtmlFormatData $data The current format data
      */
     private function handleHtmlCloseTagName(HtmlToken $token, HtmlFormatData $data): string {
+        $this->closeTag?->setName($token->content);
+
         return $token->content;
     }
 
@@ -329,7 +349,7 @@ class HtmlFormatter {
             return ' ';
         }
 
-        // Handle open and close tags
+        // Handle open and close tags endings
         if (
             $hasNewline && $prevtoken?->isGivenKind([
                 HT::HtmlOpenTagEnd,
@@ -340,14 +360,6 @@ class HtmlFormatter {
                 HT::HtmlRawtext,
             ])
         ) {
-            if ($prevtoken?->isGivenKind(HT::HtmlOpenTagEnd)) {
-                $indent->increaseDepth();
-            }
-
-            if ($prevtoken?->isGivenKind(HT::HtmlCloseTagEnd)) {
-                $indent->decreaseDepth();
-            }
-
             return $indent->getLineEndIndent();
         }
 
