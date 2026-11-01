@@ -17,12 +17,8 @@ use PhpCsFixer\FixerDefinition\FixerDefinition;
 use PhpCsFixer\FixerDefinition\FixerDefinitionInterface;
 use PhpCsFixer\Tokenizer\Tokens;
 use SkPhpCsFixers\Debug;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HT;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlFormatData;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlFormatter;
 use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlTokenizer;
 use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlTokens;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Indent;
 use SkPhpCsFixers\Traits\TokenHelpersTrait;
 use SkPhpCsFixers\Traits\WhitespaceHelpersTrait;
 
@@ -105,42 +101,11 @@ final class HtmlFormatFixer extends AbstractFixer implements WhitespacesAwareFix
     protected function applyFix(\SplFileInfo $file, Tokens $phpTokens): void {
         $tokenizer = new HtmlTokenizer();
         $htmlTokens = new HtmlTokens();
-        $htmlFormatter = new HtmlFormatter();
-        $data = new HtmlFormatData(
-            phpTokens: $phpTokens,
-            htmlTokens: $htmlTokens,
-            indent: new Indent(whitespacesConfig: $this->whitespacesConfig),
-        );
 
         // Tokenize the inline html
         foreach ($phpTokens as $i => $token) {
             if ($token->isGivenKind(\T_INLINE_HTML)) {
                 $htmlTokens->add($i, $tokenizer->tokenize($token->getContent()));
-            }
-        }
-
-        // Format the tokens
-        foreach ($phpTokens as $phpIndex => $phpToken) {
-            if ($phpToken->isGivenKind(\T_INLINE_HTML)) {
-                $formatted = '';
-
-                foreach ($htmlTokens->get($phpIndex) as $htmlIndex => $htmlToken) {
-                    $data
-                        ->setPhpIndex($phpIndex)
-                        ->setHtmlIndex($htmlIndex);
-
-                    if ($htmlToken->isGivenKind([HT::HtmlOpenTagStart, HT::HtmlCloseTagStart])) {
-                        $data->setInHtmlTag(true);
-                    }
-
-                    if ($htmlToken->isGivenKind([HT::HtmlOpenTagEnd, HT::HtmlCloseTagEnd])) {
-                        $data->setInHtmlTag(false);
-                    }
-
-                    $formatted .= $htmlFormatter->handleToken($htmlToken, $data);
-                }
-
-                $this->tokensReplaceAt($phpTokens, $phpIndex, \T_INLINE_HTML, $formatted);
             }
         }
     }

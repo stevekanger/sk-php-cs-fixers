@@ -59,10 +59,7 @@ final class HtmlTokenizer {
     private int $len = 0;
     private array $tokens = [];
     private array $tokensPending = [];
-    private int $depthOffset = 0;
-    private array $tagStack = [];
     private ?OpenTag $currentOpenTag = null;
-    private ?CloseTag $currentCloseTag = null;
 
     public const VOID_TAGS = [
         'area',
@@ -116,8 +113,6 @@ final class HtmlTokenizer {
 
     /**
      * Gets the state.
-     *
-     * @return The current state of the state machine
      */
     public function getState(): State {
         return $this->state;
@@ -250,9 +245,10 @@ final class HtmlTokenizer {
      *
      * @param string $str The string to trim
      *
-     * @return {string, string}
-     *     0: Trimmed string
-     *     1: Trimmed whitespace characters
+     * @return array{
+     *   0: string, // Trimmed string
+     *   1: string // Trimmed whitespace chars
+     * }
      */
     private function trimTrailingWhitespace(string $str): array {
         $whitespaceChars = '';
@@ -272,20 +268,6 @@ final class HtmlTokenizer {
         }
 
         return [substr($str, 0, -strlen($whitespaceChars)), $whitespaceChars];
-    }
-
-    /**
-     * Emits the buffer and trims the trailing whitespace as its own whitespace token.
-     *
-     * @param HT $tokenType The type of token your trying to emit
-     */
-    private function emitTrimTrailingWhitespace(HT $tokenType): void {
-        [$buffer, $whitespaceChars] = $this->trimTrailingWhitespace($this->buffer);
-
-        $this->buffer = $buffer;
-        $this->emit($tokenType);
-        $this->appendBuffer($whitespaceChars);
-        $this->emit(HT::Whitespace);
     }
 
     /**
@@ -1589,7 +1571,8 @@ final class HtmlTokenizer {
 
         if ($this->isAsciiWhitespace($char)) {
             $whitespaceChars = $this->getConsecutiveWhitespace($this->pos);
-            $this->addPending(HT::Whitespace, $this->consume(strlen($whitespaceChars)));
+            $this->consume(strlen($whitespaceChars));
+            $this->addPending(HT::Whitespace);
 
             return;
         }
