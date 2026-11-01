@@ -24,47 +24,47 @@ class HtmlFormatter {
      */
     public function handleToken(HtmlToken $token, HtmlFormatData $data): string {
         switch ($token->kind) {
-            case HT::HtmlData:
+            case HT::Data:
                 return $this->handleHtmlData($token, $data);
-            case HT::HtmlOpenTagStart:
+            case HT::OpenTagStart:
                 return $this->handleHtmlOpenTagStart($token, $data);
-            case HT::HtmlOpenTagEnd:
+            case HT::OpenTagEnd:
                 return $this->handleHtmlOpenTagEnd($token, $data);
-            case HT::HtmlCloseTagStart:
+            case HT::CloseTagStart:
                 return $this->handleHtmlCloseTagStart($token, $data);
-            case HT::HtmlCloseTagEnd:
+            case HT::CloseTagEnd:
                 return $this->handleHtmlCloseTagEnd($token, $data);
-            case HT::HtmlTagSolidus:
+            case HT::TagSolidus:
                 return $this->handleHtmlCloseTagEnd($token, $data);
-            case HT::HtmlOpenTagName:
+            case HT::OpenTagName:
                 return $this->handleHtmlOpenTagName($token, $data);
-            case HT::HtmlCloseTagName:
+            case HT::CloseTagName:
                 return $this->handleHtmlCloseTagName($token, $data);
-            case HT::HtmlAttributeName:
+            case HT::AttributeName:
                 return $this->handleHtmlAttributeName($token, $data);
-            case HT::HtmlAttributeEquals:
+            case HT::AttributeEquals:
                 return $this->handleHtmlAttributeEquals($token, $data);
-            case HT::HtmlAttributeQuote:
+            case HT::AttributeQuote:
                 return $this->handleHtmlAttributeQuote($token, $data);
-            case HT::HtmlAttributeValue:
+            case HT::AttributeValue:
                 return $this->handleHtmlAttributeValue($token, $data);
-            case HT::HtmlDoctypeStart:
+            case HT::DoctypeStart:
                 return $this->handleHtmlDoctypeStart($token, $data);
-            case HT::HtmlDoctypeEnd:
+            case HT::DoctypeEnd:
                 return $this->handleHtmlDoctypeEnd($token, $data);
-            case HT::HtmlDoctypeName:
+            case HT::DoctypeName:
                 return $this->handleHtmlDoctypeName($token, $data);
-            case HT::HtmlDoctypeIdentifierName:
+            case HT::DoctypeIdentifierName:
                 return $this->handleHtmlDoctypeIdentifierName($token, $data);
-            case HT::HtmlDoctypeIdentifierQuote:
+            case HT::DoctypeIdentifierQuote:
                 return $this->handleHtmlDoctypeIdentifierQuote($token, $data);
-            case HT::HtmlDoctypeIdentifierValue:
+            case HT::DoctypeIdentifierValue:
                 return $this->handleHtmlDoctypeIdentifierValue($token, $data);
-            case HT::HtmlCdata:
+            case HT::Cdata:
                 return $this->handleHtmlCdata($token, $data);
-            case HT::HtmlComment:
+            case HT::Comment:
                 return $this->handleHtmlComment($token, $data);
-            case HT::HtmlRawtext:
+            case HT::Rawtext:
                 return $this->handleHtmlRawtext($token, $data);
             case HT::Whitespace:
                 return $this->handleWhitespace($token, $data);
@@ -74,7 +74,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlData token kind.
+     * Formats the HT::Data token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -84,7 +84,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlOpenTagStart token kind.
+     * Formats the HT::OpenTagStart token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -96,7 +96,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlOpenTagEnd token kind.
+     * Formats the HT::OpenTagEnd token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -112,7 +112,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlCloseTagStart token kind.
+     * Formats the HT::CloseTagStart token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -124,7 +124,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlCloseTagEnd token kind.
+     * Formats the HT::CloseTagEnd token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -137,7 +137,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlSolidus token kind.
+     * Formats the HT::Solidus token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -147,7 +147,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlOpenTagName token kind.
+     * Formats the HT::OpenTagName token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -159,7 +159,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlCloseTagName token kind.
+     * Formats the HT::CloseTagName token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -171,7 +171,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlAttributeName token kind.
+     * Formats the HT::AttributeName token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -181,7 +181,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlAttributeEquals token kind.
+     * Formats the HT::AttributeEquals token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -191,7 +191,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlAttributeQuote token kind.
+     * Formats the HT::AttributeQuote token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -201,7 +201,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlAttributeValue token kind.
+     * Formats the HT::AttributeValue token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -211,7 +211,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeStart token kind.
+     * Formats the HT::DoctypeStart token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -221,7 +221,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeEnd token kind.
+     * Formats the HT::DoctypeEnd token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -231,7 +231,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeName token kind.
+     * Formats the HT::DoctypeName token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -241,7 +241,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeIdentifierName token kind.
+     * Formats the HT::DoctypeIdentifierName token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -251,7 +251,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeIdentifierQuote token kind.
+     * Formats the HT::DoctypeIdentifierQuote token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -261,7 +261,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlDoctypeIdentifierValue token kind.
+     * Formats the HT::DoctypeIdentifierValue token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -271,7 +271,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlCdata token kind.
+     * Formats the HT::Cdata token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -281,7 +281,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlComment token kind.
+     * Formats the HT::Comment token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -291,7 +291,7 @@ class HtmlFormatter {
     }
 
     /**
-     * Formats the HT::HtmlRawtext token kind.
+     * Formats the HT::Rawtext token kind.
      *
      * @param HtmlToken $token The token to format
      * @param HtmlFormatData $data The current format data
@@ -333,14 +333,14 @@ class HtmlFormatter {
         if ($data->inHtmlTag() && !$hasNewline) {
             if (
                 $prevtoken?->isGivenKind([
-                    HT::HtmlCloseTagStart,
-                    HT::HtmlCloseTagName,
-                    HT::HtmlAttributeEquals,
+                    HT::CloseTagStart,
+                    HT::CloseTagName,
+                    HT::AttributeEquals,
                 ])
                 || $nexttoken?->isGivenKind([
-                    HT::HtmlOpenTagEnd,
-                    HT::HtmlCloseTagEnd,
-                    HT::HtmlAttributeEquals,
+                    HT::OpenTagEnd,
+                    HT::CloseTagEnd,
+                    HT::AttributeEquals,
                 ])
             ) {
                 return '';
@@ -352,12 +352,12 @@ class HtmlFormatter {
         // Handle open and close tags endings
         if (
             $hasNewline && $prevtoken?->isGivenKind([
-                HT::HtmlOpenTagEnd,
-                HT::HtmlCloseTagEnd,
-                HT::HtmlDoctypeEnd,
-                HT::HtmlCdata,
-                HT::HtmlComment,
-                HT::HtmlRawtext,
+                HT::OpenTagEnd,
+                HT::CloseTagEnd,
+                HT::DoctypeEnd,
+                HT::Cdata,
+                HT::Comment,
+                HT::Rawtext,
             ])
         ) {
             return $indent->getLineEndIndent();
