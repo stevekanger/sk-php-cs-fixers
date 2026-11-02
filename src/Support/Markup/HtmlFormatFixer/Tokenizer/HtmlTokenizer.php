@@ -277,14 +277,14 @@ final class HtmlTokenizer {
      */
     private function emit(HT $kind): void {
         if (count($this->tokensPending)) {
-            throw new \RuntimeException("HtmlTokenizer: call to emit {$kind->name} with pending tokens.");
+            $pendingContent = $this->flushPending();
+
+            throw new \RuntimeException("HtmlTokenizer: call to emit {$kind->name} with pending tokens. '{$pendingContent}'");
         }
 
         if ('' === $this->buffer) {
             return;
         }
-
-        /* $this->tokens[] = new HtmlToken($kind, $this->flushBuffer()); */
 
         ($this->emitter)(new HtmlToken($kind, $this->flushBuffer()));
     }
@@ -296,6 +296,8 @@ final class HtmlTokenizer {
         foreach ($this->tokensPending as $token) {
             ($this->emitter)($token);
         }
+
+        $this->tokensPending = [];
     }
 
     /**
