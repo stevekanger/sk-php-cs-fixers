@@ -49,7 +49,7 @@ $rules = [
     'no_superfluous_elseif' => true,
     // Set PHPUnit method casing to match project
     'php_unit_method_casing' => [
-        'case' => 'snake_case',
+        'case' => 'camel_case',
     ],
     // Allow params without descriptions
     'no_superfluous_phpdoc_tags' => false,
