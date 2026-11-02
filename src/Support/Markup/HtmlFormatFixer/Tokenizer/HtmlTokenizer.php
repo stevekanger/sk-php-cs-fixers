@@ -133,6 +133,7 @@ final class HtmlTokenizer {
      * This does not change the states. If you need a clean tokenizer create a new instance.
      */
     private function reset() {
+        // todo: possible handle buffer, pending, opentag, state
         $this->input = '';
         $this->pos = 0;
         $this->len = 0;
@@ -192,11 +193,11 @@ final class HtmlTokenizer {
      * @param int $pos The position you want to access. (Default $this->pos)
      */
     private function getChar(?int $pos = null): string {
-        if (!$pos) {
+        if (null === $pos) {
             $pos = $this->pos;
         }
 
-        if ($pos > $this->len) {
+        if ($pos >= $this->len) {
             throw new \RuntimeException('Attempt to access character outside bounds.');
         }
 
@@ -227,7 +228,24 @@ final class HtmlTokenizer {
      * @param bool $case_insensitive
      */
     private function posStartsWith(int $pos, string $needle, bool $case_insensitive = false): bool {
+        if ($pos < 0) {
+            return false;
+        }
+
         return 0 === substr_compare($this->input, $needle, $pos, strlen($needle), $case_insensitive);
+    }
+
+    /**
+     * Checks if a substring ends with.
+     *
+     * @param int $pos
+     * @param string $needle
+     * @param bool $case_insensitive
+     */
+    private function posEndsWith(int $pos, string $needle, bool $case_insensitive = false): bool {
+        $startingPos = $pos - strlen($needle) + 1;
+
+        return $this->posStartsWith($startingPos, $needle, $case_insensitive);
     }
 
     /**
@@ -495,6 +513,7 @@ final class HtmlTokenizer {
      * Cleans up the buffer when a php block is encountered or the end of a tokenization run.
      */
     private function cleanup(): void {
+        // todo: handle final run cleanup.
         switch ($this->state) {
             case State::Data:
                 $this->emit(HT::Data);
@@ -503,9 +522,10 @@ final class HtmlTokenizer {
             case State::BeforeData:
                 break;
             case State::OpenTagStart:
-                // todo: assume break involves tag name?
+                // assume break involves tag name
                 $this->emitPending();
                 $this->emit(HT::OpenTagStart);
+                $this->openTag = new OpenTag();
                 $this->setState(State::OpenTagName);
 
                 break;
@@ -537,7 +557,7 @@ final class HtmlTokenizer {
                 break;
             case State::CloseTagStart:
                 // todo: assume break involves tag name?
-                $this->emit(HT::OpenTagStart);
+                $this->emit(HT::TagSolidus);
                 $this->setState(State::CloseTagName);
 
                 break;
@@ -786,7 +806,11 @@ final class HtmlTokenizer {
             $this->appendBuffer('>');
             $this->emit(HT::OpenTagEnd);
 
-            if ($this->openTag && in_array($this->openTag->getName(), self::RAWTEXT_TAGS)) {
+            // todo: handle case insensitive open tag names
+            if (
+                $this->openTag
+                && in_array($this->openTag->getName(), self::RAWTEXT_TAGS)
+            ) {
                 $this->setState(State::BeforeRawtext);
             } else {
                 $this->setState(State::BeforeData);
@@ -952,6 +976,7 @@ final class HtmlTokenizer {
             return;
         }
 
+        // todo: possibly handle extra terminators " ' ` = <
         if ('>' === $char || '/' === $char) {
             $this->emit(HT::AttributeValue);
             $this->reconsume(State::BetweenTagAttributes);
@@ -964,7 +989,7 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Handle State SelfClosingTagStart.
+     * Handle State::SelfClosingTagStart.
      *
      * Referring states and buffer contents
      * - OpenTagName: empty
@@ -1005,8 +1030,9 @@ final class HtmlTokenizer {
     private function handleCloseTagStart(string $char): void {
         $this->expectedBuffer(State::CloseTagStart, ['/']);
 
-        // todo: expected buffer flag for whitespace
+        // todo: expected buffer flag for whitespace (right now any whitespace will throw expected error)
         if ($this->isAsciiWhitespace($char)) {
+            $this->emit(HT::TagSolidus);
             $this->emitConsecutiveWhitespace();
 
             return;
@@ -1026,7 +1052,6 @@ final class HtmlTokenizer {
             return;
         }
 
-        /* $this->reconsume(State::BogusComment); */
         $this->parseError("Invalid character {$char} in CloseTagStart state");
     }
 
@@ -1067,7 +1092,7 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAfterCloseTagName(string $char): void {
-        $this->expectedBuffer(State::CloseTagName, ExpectedFlag::Any);
+        $this->expectedBuffer(State::AfterCloseTagName, ExpectedFlag::Any);
 
         if ($this->isAsciiWhitespace($char)) {
             $this->emitConsecutiveWhitespace();
@@ -1269,7 +1294,7 @@ final class HtmlTokenizer {
     /**
      * Handle State::DoctypeIdentifierValueSingleQuoted.
      *
-     * Buffer Consents: and buffer contents
+     * Referring states and buffer contents
      * - BetweenDoctypeAttributes: empty
      * - DoctypeIdentifierValueSingleQuoted: "...value"
      *
@@ -1325,7 +1350,7 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Handle State Comment.
+     * Handle State::Comment.
      *
      * Referring states and buffer contents
      * - MarkupDeclarationStart: empty
@@ -1336,8 +1361,11 @@ final class HtmlTokenizer {
     private function handleComment(string $char): void {
         $this->expectedBuffer(State::Comment, ExpectedFlag::Any);
 
-        if ($this->posStartsWith($this->pos, '-->')) {
-            $this->appendBuffer($this->consume(strlen('-->')));
+        if ('>' === $char && (
+            $this->posEndsWith($this->pos, '-->')
+            || $this->posEndsWith($this->pos, '--!>')
+        )) {
+            $this->appendBuffer($char);
             $this->emit(HT::Comment);
             $this->setState(State::BeforeData);
 
@@ -1376,7 +1404,7 @@ final class HtmlTokenizer {
      * Handle State::Cdata.
      *
      * Referring states and buffer contents
-     * - MarkupDeclarationStart: "<[CDATA["
+     * - MarkupDeclarationStart: "<![CDATA["
      * - Cdata: "...cdata"
      *
      * @param string $char The current character
@@ -1440,7 +1468,7 @@ final class HtmlTokenizer {
 
                 // add pending trailing whitespace
                 $this->appendBuffer($whitespace);
-                $this->addPending(Ht::Whitespace);
+                $this->addPending(HT::Whitespace);
 
                 // add pending close tag start
                 $this->appendBuffer($char);
@@ -1568,7 +1596,7 @@ final class HtmlTokenizer {
 
         if ($this->isAsciiWhitespace($char)) {
             $whitespaceChars = $this->getConsecutiveWhitespace($this->pos);
-            $this->consume(strlen($whitespaceChars));
+            $this->appendBuffer($this->consume(strlen($whitespaceChars)));
             $this->addPending(HT::Whitespace);
 
             return;
@@ -1583,6 +1611,7 @@ final class HtmlTokenizer {
                 }
             }
 
+            // todo: case insensitve compare
             if ($this->openTag?->getName() === $tagName) {
                 $this->emitPending();
                 $this->appendBuffer($char);
