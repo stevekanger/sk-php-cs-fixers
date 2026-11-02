@@ -17,8 +17,8 @@ use PhpCsFixer\FixerDefinition\FixerDefinition;
 use PhpCsFixer\FixerDefinition\FixerDefinitionInterface;
 use PhpCsFixer\Tokenizer\Tokens;
 use SkPhpCsFixers\Debug;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlTokenizer;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\HtmlTokens;
+use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer\HtmlTokenizer;
+use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer\HtmlTokens;
 use SkPhpCsFixers\Traits\TokenHelpersTrait;
 use SkPhpCsFixers\Traits\WhitespaceHelpersTrait;
 
