@@ -55,9 +55,13 @@ final class HtmlTokenizer {
     private string $buffer = '';
     private int $pos = 0;
     private int $len = 0;
-    private array $tokens = [];
     private array $tokensPending = [];
-    private ?HtmlOpenTag $openTag = null;
+    private ?OpenTag $openTag = null;
+
+    public function __construct(
+        private \Closure $emitter,
+    ) {
+    }
 
     public const VOID_TAGS = [
         'area',
@@ -92,7 +96,7 @@ final class HtmlTokenizer {
      *
      * @param string $input The string of html you want to tokenize
      */
-    public function tokenize(string $input): array {
+    public function tokenize(string $input): void {
         $this->reset();
         $this->input = $input;
         $this->len = strlen($input);
@@ -105,8 +109,6 @@ final class HtmlTokenizer {
         }
 
         $this->cleanup();
-
-        return $this->tokens;
     }
 
     /**
@@ -131,7 +133,6 @@ final class HtmlTokenizer {
      * This does not change the states. If you need a clean tokenizer create a new instance.
      */
     private function reset() {
-        $this->tokens = [];
         $this->input = '';
         $this->pos = 0;
         $this->len = 0;
@@ -270,7 +271,7 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Creates a token and adds it to the tokens array with the buffer contents.
+     * Creates a token of a kind with the buffer contents and emits it immediately.
      *
      * @param HT $kind The token kind
      */
@@ -283,7 +284,18 @@ final class HtmlTokenizer {
             return;
         }
 
-        $this->tokens[] = new HtmlToken($kind, $this->flushBuffer());
+        /* $this->tokens[] = new HtmlToken($kind, $this->flushBuffer()); */
+
+        ($this->emitter)(new HtmlToken($kind, $this->flushBuffer()));
+    }
+
+    /**
+     * Emits all pending tokens.
+     */
+    private function emitPending(): void {
+        foreach ($this->tokensPending as $token) {
+            ($this->emitter)($token);
+        }
     }
 
     /**
@@ -291,7 +303,7 @@ final class HtmlTokenizer {
      *
      * @param HT $kind The kind of token
      */
-    private function addPending(HT $kind) {
+    private function addPending(HT $kind): void {
         if ('' === $this->buffer) {
             return;
         }
@@ -300,7 +312,7 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Adds all pending tokens contents to the buffer.
+     * Clears all pending tokens and returns their contents.
      */
     private function flushPending(): string {
         $chars = '';
@@ -312,17 +324,6 @@ final class HtmlTokenizer {
         $this->tokensPending = [];
 
         return $chars;
-    }
-
-    /**
-     * Emits all pending tokens.
-     */
-    private function emitPending() {
-        foreach ($this->tokensPending as $token) {
-            $this->tokens[] = $token;
-        }
-
-        $this->tokensPending = [];
     }
 
     /**
@@ -596,11 +597,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::Data.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BeforeData: empty
+     * - Data: "...data"
      *
-     * Referring States
-     * BeforeData: empty
-     * Data: "...data"
+     * @param string $char The current character
      */
     private function handleData(string $char): void {
         $this->expectedBuffer(State::Data, ExpectedFlag::Any);
@@ -628,22 +629,22 @@ final class HtmlTokenizer {
     /**
      * Handle State::BeforeData.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagName: empty
+     * - CloseTagName: empty
+     * - BetweenTagAttributes: empty
+     * - SelfClosingTagStart: empty
+     * - BetweenDoctypeAttributes: empty
+     * - DoctypeName: empty
+     * - DoctypeIdentifierValueDoubleQuoted: empty
+     * - DoctypeIdentifierValueSingleQuoted: empty
+     * - BogusDoctype: empty
+     * - Comment: empty
+     * - BogusComment: empty
+     * - Cdata: empty
+     * - RawtextCloseTagName: empty
      *
-     * Referring States
-     * OpenTagName: empty
-     * CloseTagName: empty
-     * BetweenTagAttributes: empty
-     * SelfClosingTagStart: empty
-     * BetweenDoctypeAttributes: empty
-     * DoctypeName: empty
-     * DoctypeIdentifierValueDoubleQuoted: empty
-     * DoctypeIdentifierValueSingleQuoted: empty
-     * BogusDoctype: empty
-     * Comment: empty
-     * BogusComment: empty
-     * Cdata: empty
-     * RawtextCloseTagName: empty
+     * @param string $char The current character
      */
     private function handleBeforeData(string $char): void {
         $this->expectedBuffer(State::BeforeData, ['']);
@@ -660,12 +661,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::OpenTagStart.
      *
+     * Referring states and buffer contents
+     * - Data: "<"
+     *
+     * Pending Tokens
+     * -  ("...data", "...whitespace")
+     *
      * @param string $char The current character
-     *
-     * Referring States
-     * Data: "<"
-     *
-     * Pending ["...data", "...whitespace"]
      */
     private function handleOpenTagStart(string $char): void {
         $this->expectedBuffer(State::OpenTagStart, ['<']);
@@ -690,7 +692,7 @@ final class HtmlTokenizer {
         if ($this->isAsciiAlpha($char)) {
             $this->emitPending();
             $this->emit(HT::OpenTagStart);
-            $this->openTag = new HtmlOpenTag();
+            $this->openTag = new OpenTag();
             $this->reconsume(State::OpenTagName);
 
             return;
@@ -704,10 +706,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::OpenTagName.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagName: "...name"
      *
-     * Referring States
-     * OpenTagName: "...name"
+     * @param string $char The current character
      */
     private function handleOpenTagName(string $char): void {
         $this->expectedBuffer(State::OpenTagName, ExpectedFlag::Any);
@@ -741,16 +743,16 @@ final class HtmlTokenizer {
     /**
      * Handle State::BetweenTagAttributes.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagName: empty
+     * - AttributeName: empty
+     * - BeforeAttributeValue: empty
+     * - AttributeValueDoubleQuoted: empty
+     * - AttributeValueSingleQuoted: empty
+     * - AttributeValueUnquoted: empty
+     * - SelfClosingTagStart: empty
      *
-     * Referring States
-     * OpenTagName: empty
-     * AttributeName: empty
-     * BeforeAttributeValue: empty
-     * AttributeValueDoubleQuoted: empty
-     * AttributeValueSingleQuoted: empty
-     * AttributeValueUnquoted: empty
-     * SelfClosingTagStart: empty
+     * @param string $char The current character
      */
     private function handleBetweenTagAttributes(string $char): void {
         $this->expectedBuffer(State::BetweenTagAttributes, ['']);
@@ -803,11 +805,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::AttributeName.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenTagAttributes: "...name"
+     * - AttributeName: "...name"
      *
-     * Referring States
-     * BetweenTagAttributes: "...name"
-     * AttributeName: "...name"
+     * @param string $char The current character
      */
     private function handleAttributeName(string $char): void {
         $this->expectedBuffer(State::AttributeName, ExpectedFlag::Any);
@@ -841,11 +843,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::BeforeAttributeValue.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenTagAttributes: empty
+     * - AttributeName: empty
      *
-     * Referring States
-     * BetweenTagAttributes: empty
-     * AttributeName: empty
+     * @param string $char The current character
      */
     private function handleBeforeAttributeValue(string $char): void {
         $this->expectedBuffer(State::BeforeAttributeValue, ['']);
@@ -884,11 +886,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::AttributeValueDoubleQuoted.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BeforeAttributeValue: empty
+     * - AttributeValueDoubleQuoted: "...value"
      *
-     * Referring States
-     * BeforeAttributeValue: empty
-     * AttributeValueDoubleQuoted: "...value"
+     * @param string $char The current character
      */
     private function handleAttributeValueDoubleQuoted(string $char): void {
         $this->expectedBuffer(State::AttributeValueDoubleQuoted, ExpectedFlag::Any);
@@ -908,11 +910,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::AttributeValueSingleQuoted.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BeforeAttributeValue: empty
+     * - AttributeValueSingleQuoted: "...value"
      *
-     * Referring States
-     * BeforeAttributeValue: empty
-     * AttributeValueSingleQuoted: "...value"
+     * @param string $char The current character
      */
     private function handleAttributeValueSingleQuoted(string $char): void {
         $this->expectedBuffer(State::AttributeValueSingleQuoted, ExpectedFlag::Any);
@@ -932,11 +934,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::AttributeValueUnquoted.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BeforeAttributeValue: empty
+     * - AttributeValueUnquoted: "...value"
      *
-     * Referring States
-     * BeforeAttributeValue: empty
-     * AttributeValueUnquoted: "...value"
+     * @param string $char The current character
      */
     private function handleAttributeValueUnquoted(string $char): void {
         $this->expectedBuffer(State::AttributeValueUnquoted, ExpectedFlag::Any);
@@ -962,12 +964,12 @@ final class HtmlTokenizer {
     /**
      * Handle State SelfClosingTagStart.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagName: empty
+     * - BetweenTagAttributes: empty
+     * - RawtextCloseTagName: empty
      *
-     * Referring States
-     * OpenTagName: empty
-     * BetweenTagAttributes: empty
-     * RawtextCloseTagName: empty
+     * @param string $char The current character
      */
     private function handleSelfClosingTagStart(string $char): void {
         $this->expectedBuffer(State::SelfClosingTagStart, ['']);
@@ -993,10 +995,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::CloseTagStart.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagStart: "/"
      *
-     * Referring States
-     * OpenTagStart: "/"
+     * @param string $char The current character
      */
     private function handleCloseTagStart(string $char): void {
         $this->expectedBuffer(State::CloseTagStart, ['/']);
@@ -1029,10 +1031,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::CloseTagName.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - CloseTagName: "...name"
      *
-     * Referring States
-     * CloseTagName: "...name"
+     * @param string $char The current character
      */
     private function handleCloseTagName(string $char): void {
         $this->expectedBuffer(State::CloseTagName, ExpectedFlag::Any);
@@ -1057,10 +1059,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::AfterCloseTagName.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - CloseTagName: "...name"
      *
-     * Referring States
-     * CloseTagName: "...name"
+     * @param string $char The current character
      */
     private function handleAfterCloseTagName(string $char): void {
         $this->expectedBuffer(State::CloseTagName, ExpectedFlag::Any);
@@ -1088,10 +1090,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::MarkupDeclarationStart.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagStart: "<!"
      *
-     * Referring States
-     * OpenTagStart: "<!"
+     * @param string $char The current character
      */
     private function handleMarkupDeclarationStart(string $char): void {
         $this->expectedBuffer(State::MarkupDeclarationStart, ['<!']);
@@ -1125,13 +1127,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::BetweenDoctypeAttributes.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - MarkupDeclarationStart: empty
+     * - DoctypeName: empty
+     * - DoctypeIdentifierValueDoubleQuoted: empty
+     * - DoctypeIdentifierValueSingleQuoted: empty
      *
-     * Referring States
-     * MarkupDeclarationStart: empty
-     * DoctypeName: empty
-     * DoctypeIdentifierValueDoubleQuoted: empty
-     * DoctypeIdentifierValueSingleQuoted: empty
+     * @param string $char The current character
      */
     private function handleBetweenDoctypeAttributes(string $char): void {
         $this->expectedBuffer(State::BetweenDoctypeAttributes, ['']);
@@ -1193,11 +1195,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::DoctypeName.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenDoctypeAttributes: empty
+     * - DoctypeName: "...name"
      *
-     * Referring States
-     * BetweenDoctypeAttributes: empty
-     * DoctypeName: "...name"
+     * @param string $char The current character
      */
     private function handleDoctypeName(string $char): void {
         $this->expectedBuffer(State::DoctypeName, ExpectedFlag::Any);
@@ -1231,11 +1233,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::DoctypeIdentifierValueDoubleQuoted.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenDoctypeAttributes: empty
+     * - DoctypeIdentifierValueDoubleQuoted: "...value"
      *
-     * Referring States
-     * BetweenDoctypeAttributes: empty
-     * DoctypeIdentifierValueDoubleQuoted: "...value"
+     * @param string $char The current character
      */
     private function handleDoctypeIdentifierValueDoubleQuoted(string $char): void {
         $this->expectedBuffer(State::DoctypeIdentifierValueDoubleQuoted, ExpectedFlag::Any);
@@ -1265,11 +1267,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::DoctypeIdentifierValueSingleQuoted.
      *
-     * @param string $char The current character
+     * Buffer Consents: and buffer contents
+     * - BetweenDoctypeAttributes: empty
+     * - DoctypeIdentifierValueSingleQuoted: "...value"
      *
-     * Buffer Contents:
-     * BetweenDoctypeAttributes: empty
-     * DoctypeIdentifierValueSingleQuoted: "...value"
+     * @param string $char The current character
      */
     private function handleDoctypeIdentifierValueSingleQuoted(string $char): void {
         $this->expectedBuffer(State::DoctypeIdentifierValueSingleQuoted, ExpectedFlag::Any);
@@ -1299,11 +1301,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::BogusDoctype.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenDoctypeAttributes: "...any"
+     * - DoctypeName: "...any"
      *
-     * Referring States
-     * BetweenDoctypeAttributes: "...any"
-     * DoctypeName: "...any"
+     * @param string $char The current character
      */
     private function handleBogusDoctype(string $char): void {
         $this->expectedBuffer(State::BogusDoctype, ExpectedFlag::Any);
@@ -1323,11 +1325,11 @@ final class HtmlTokenizer {
     /**
      * Handle State Comment.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - MarkupDeclarationStart: empty
+     * - Comment: "...comment"
      *
-     * Referring States
-     * MarkupDeclarationStart: empty
-     * Comment: "...comment"
+     * @param string $char The current character
      */
     private function handleComment(string $char): void {
         $this->expectedBuffer(State::Comment, ExpectedFlag::Any);
@@ -1346,13 +1348,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::BogusComment.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - OpenTagStart: "...comment"
+     * - CloseTagStart: "...comment"
+     * - MarkupDeclarationStart: "...comment"
+     * - BogusComment: "...comment"
      *
-     * Referring States
-     * OpenTagStart: "...comment"
-     * CloseTagStart: "...comment"
-     * MarkupDeclarationStart: "...comment"
-     * BogusComment: "...comment"
+     * @param string $char The current character
      */
     private function handleBogusComment(string $char): void {
         $this->expectedBuffer(State::BogusComment, ExpectedFlag::Any);
@@ -1371,11 +1373,11 @@ final class HtmlTokenizer {
     /**
      * Handle State::Cdata.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - MarkupDeclarationStart: "<[CDATA["
+     * - Cdata: "...cdata"
      *
-     * Referring States
-     * MarkupDeclarationStart: "<[CDATA["
-     * Cdata: "...cdata"
+     * @param string $char The current character
      */
     private function handleCdata(string $char): void {
         $this->expectedBuffer(State::Cdata, ExpectedFlag::Any);
@@ -1394,10 +1396,10 @@ final class HtmlTokenizer {
     /**
      * Handle State::BeforeRawtext.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - BetweenTagAttributes: empty
      *
-     * Referring States
-     * BetweenTagAttributes: empty
+     * @param string $char The current character
      */
     private function handleBeforeRawtext(string $char): void {
         $this->expectedBuffer(State::BeforeRawtext, ['']);
@@ -1415,13 +1417,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::Rawtext.
      *
-     * @param string $char The current character
+     * Referring states and buffer contents
+     * - RawtextLessThanSign: "...rawtext"
+     * - RawtextCloseTagStart: "...rawtext"
+     * - RawtextCloseTagName: "...rawtext"
+     * - Rawtext: "...rawtext"
      *
-     * Referring States
-     * RawtextLessThanSign: "...rawtext"
-     * RawtextCloseTagStart: "...rawtext"
-     * RawtextCloseTagName: "...rawtext"
-     * Rawtext: "...rawtext"
+     * @param string $char The current character
      */
     private function handleRawtext(string $char): void {
         $this->expectedBuffer(State::Rawtext, ExpectedFlag::Any);
@@ -1454,12 +1456,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::RawtextLessThanSign.
      *
+     * Referring states and buffer contents
+     * - Rawtext: empty
+     *
+     * Pending Tokens
+     * - ("...rawtext", "...whitespace", "<")
+     *
      * @param string $char The current character
-     *
-     * Referring States
-     * Rawtext: empty
-     *
-     * Pending: ["...rawtext", "...whitespace", "<"]
      */
     private function handleRawtextLessThanSign(string $char): void {
         $this->expectedBuffer(State::RawtextLessThanSign, ['']);
@@ -1479,12 +1482,13 @@ final class HtmlTokenizer {
     /**
      * Handle State::RawtextCloseTagStart.
      *
+     * Referring states and buffer contents
+     * - RawtextLessThanSign: empty
+     *
+     * Pending Tokens
+     * - ("...rawtext", "<", "/", "...possibleWhitespace")
+     *
      * @param string $char The current character
-     *
-     * Referring States
-     * RawtextLessThanSign: empty
-     *
-     * Pending ["...rawtext", "<", "/", "...possibleWhitespace"]
      */
     private function handleRawtextCloseTagStart(string $char): void {
         $this->expectedBuffer(State::RawtextCloseTagStart, ['']);
@@ -1509,13 +1513,14 @@ final class HtmlTokenizer {
     /**
      * Handle State RawtextCloseTagName.
      *
+     * Referring states and buffer contents
+     * - RawtextCloseTagStart: empty
+     * - RawtextCloseTagName: "...name"
+     *
+     * Pending Tokens
+     * - ("...rawtext", "<", "/", "...possibleWhitespace")
+     *
      * @param string $char The current character
-     *
-     * Referring States
-     * RawtextCloseTagStart: empty
-     * RawtextCloseTagName: "...name"
-     *
-     * Pending ["...rawtext", "<", "/", "...possibleWhitespace"]
      */
     private function handleRawtextCloseTagName(string $char): void {
         $this->expectedBuffer(State::RawtextCloseTagName, ExpectedFlag::Any);
@@ -1548,12 +1553,13 @@ final class HtmlTokenizer {
     /**
      * Handle State RawtextAfterCloseTagName.
      *
+     * Referring states and buffer contents
+     * - RawtextCloseTagName: empty
+     *
+     * Pending Tokens
+     * - ("...rawtext", "<", "/", "...possibleWhitespace", "...name", "...possibleWhitespace")
+     *
      * @param string $char The current character
-     *
-     * Referring States
-     * RawtextCloseTagName: empty
-     *
-     * Pending ["...rawtext", "<", "/", "...possibleWhitespace", "...name", "...possibleWhitespace"]
      */
     private function handleRawtextAfterCloseTagName(string $char): void {
         $this->expectedBuffer(State::RawtextAfterCloseTagName, ['']);
