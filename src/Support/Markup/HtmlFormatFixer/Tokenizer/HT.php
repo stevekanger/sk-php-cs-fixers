@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer;
+namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer;
 
 enum HT {
     case Data;
@@ -27,5 +27,4 @@ enum HT {
     case Comment;
     case Rawtext;
     case Whitespace;
-    case PhpBlock;
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer;
+namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer;
 
 class HtmlTokens {
     private array $map = [];

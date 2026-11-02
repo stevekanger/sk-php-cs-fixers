@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer;
+namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer;
 
-class OpenTag {
+class HtmlOpenTag {
     private string $name = '';
     private bool $selfClosing = false;
     private bool $hasIndent = false;

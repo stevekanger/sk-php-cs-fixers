@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer;
+namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer;
 
 use SkPhpCsFixers\Traits\AsciiHelpersTrait;
 
@@ -57,7 +57,7 @@ final class HtmlTokenizer {
     private int $len = 0;
     private array $tokens = [];
     private array $tokensPending = [];
-    private ?OpenTag $currentOpenTag = null;
+    private ?HtmlOpenTag $openTag = null;
 
     public const VOID_TAGS = [
         'area',
@@ -690,7 +690,7 @@ final class HtmlTokenizer {
         if ($this->isAsciiAlpha($char)) {
             $this->emitPending();
             $this->emit(HT::OpenTagStart);
-            $this->currentOpenTag = new OpenTag();
+            $this->openTag = new HtmlOpenTag();
             $this->reconsume(State::OpenTagName);
 
             return;
@@ -734,7 +734,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        $this->currentOpenTag?->appendName($char);
+        $this->openTag?->appendName($char);
         $this->appendBuffer($char);
     }
 
@@ -782,7 +782,7 @@ final class HtmlTokenizer {
             $this->appendBuffer('>');
             $this->emit(HT::OpenTagEnd);
 
-            if ($this->currentOpenTag && in_array($this->currentOpenTag->getName(), self::RAWTEXT_TAGS)) {
+            if ($this->openTag && in_array($this->openTag->getName(), self::RAWTEXT_TAGS)) {
                 $this->setState(State::BeforeRawtext);
             } else {
                 $this->setState(State::BeforeData);
@@ -981,7 +981,7 @@ final class HtmlTokenizer {
         if ('>' === $char) {
             $this->appendBuffer('>');
             $this->emit(HT::OpenTagEnd);
-            $this->currentOpenTag?->setSelfClosing(true);
+            $this->openTag?->setSelfClosing(true);
             $this->setState(State::BeforeData);
 
             return;
@@ -1427,7 +1427,7 @@ final class HtmlTokenizer {
         $this->expectedBuffer(State::Rawtext, ExpectedFlag::Any);
 
         if ('<' === $char) {
-            if ($this->currentOpenTag) {
+            if ($this->openTag) {
                 [$buffer, $whitespace] = $this->trimTrailingWhitespace($this->flushBuffer());
 
                 // add pending rawtext
@@ -1575,11 +1575,11 @@ final class HtmlTokenizer {
                 }
             }
 
-            if ($this->currentOpenTag?->getName() === $tagName) {
+            if ($this->openTag?->getName() === $tagName) {
                 $this->emitPending();
                 $this->appendBuffer($char);
                 $this->emit(HT::CloseTagEnd);
-                $this->currentOpenTag = null;
+                $this->openTag = null;
                 $this->setState(State::BeforeData);
             } else {
                 $this->appendBuffer($this->flushPending());
