@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Tests;
+namespace SkPhpCsFixers\Tests\Fixer;
 
 use PhpCsFixer\Fixer\FixerInterface;
-use PhpCsFixer\Tests\Test\AbstractFixerTestCase;
+use PhpCsFixer\Tests\Test\AbstractFixerTestCase as AbstractPhpCsFixerTestCase;
 
 /**
- * AbstractTestCase class.
+ * AbstractFixerTestCase class.
  *
  * We do this just so we can include php-cs-fixer tests without
  * having to look at intelephense errors in our tests since
  * intelephense by default excludes test directories.
  */
-abstract class AbstractTestCase extends AbstractFixerTestCase {
+abstract class AbstractFixerTestCase extends AbstractPhpCsFixerTestCase {
     abstract protected function createCustomFixer(): FixerInterface;
 
     abstract public static function provideFixCases(): iterable;
@@ -25,6 +25,10 @@ abstract class AbstractTestCase extends AbstractFixerTestCase {
 
     /**
      * @dataProvider provideFixCases
+     *
+     * @param string $expected
+     * @param ?string $input
+     * @param ?array $config
      */
     public function testFix(string $expected, ?string $input = null, ?array $config = null): void {
         if ($config) {

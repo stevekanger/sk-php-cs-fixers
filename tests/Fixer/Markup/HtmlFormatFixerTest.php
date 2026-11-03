@@ -6,9 +6,9 @@ namespace SkPhpCsFixers\Tests\Fixer\Markup;
 
 use PhpCsFixer\Fixer\FixerInterface;
 use SkPhpCsFixers\Fixer\Markup\HtmlFormatFixer;
-use SkPhpCsFixers\Tests\AbstractTestCase;
+use SkPhpCsFixers\Tests\Fixer\AbstractFixerTestCase;
 
-final class HtmlFormatFixerTest extends AbstractTestCase {
+final class HtmlFormatFixerTest extends AbstractFixerTestCase {
     protected function createCustomFixer(): FixerInterface {
         return new HtmlFormatFixer();
     }

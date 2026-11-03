@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SkPhpCsFixers\Tests\Fixer\ArrayFormat;
+namespace SkPhpCsFixers\Tests\Fixer\ArrayNotation;
 
 use PhpCsFixer\Fixer\FixerInterface;
 use SkPhpCsFixers\Fixer\ArrayNotation\ArrayFormatFixer;
-use SkPhpCsFixers\Tests\AbstractTestCase;
+use SkPhpCsFixers\Tests\Fixer\AbstractFixerTestCase;
 
-final class ArrayFormatFixerTest extends AbstractTestCase {
+final class ArrayFormatFixerTest extends AbstractFixerTestCase {
     protected function createCustomFixer(): FixerInterface {
         return new ArrayFormatFixer();
     }
@@ -440,6 +440,7 @@ final class ArrayFormatFixerTest extends AbstractTestCase {
     }
 
     /**
+     * @param string $syntax
      * @param array<string, string> $replacers
      * @param \Generator<string, array{0: string, 1?: string, 2?: array<mixed>}> $cases *
      *

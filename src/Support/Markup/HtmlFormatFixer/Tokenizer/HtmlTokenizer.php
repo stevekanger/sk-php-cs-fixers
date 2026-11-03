@@ -605,15 +605,6 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Throw a parser error.
-     *
-     * @param string $msg The error message you want to throw.
-     */
-    private function parseError(string $msg): void {
-        throw new \RuntimeException("HtmlTokenizer parse error: {$msg}");
-    }
-
-    /**
      * Handle State::Data.
      *
      * Referring states and buffer contents
@@ -1048,7 +1039,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        $this->parseError("Invalid character {$char} in CloseTagStart state");
+        throw new HtmlParseException("Invalid character {$char} in CloseTagStart state");
     }
 
     /**
@@ -1077,9 +1068,7 @@ final class HtmlTokenizer {
         }
 
         if ('/' === $char) {
-            $this->parseError("Invalid character in close tag name '{$char}'");
-
-            return;
+            throw new HtmlParseException("Invalid character in close tag name '{$char}'");
         }
 
         $this->appendBuffer($char);
@@ -1113,7 +1102,7 @@ final class HtmlTokenizer {
         // todo: possible parse error
         /* $this->appendBuffer($char); */
         /* $this->setState(State::Data); */
-        $this->parseError("Invalid character '{$char}' in CloseTagName state.");
+        throw new HtmlParseException("Invalid character '{$char}' in CloseTagName state.");
     }
 
     /**
@@ -1149,8 +1138,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        /* $this->setState(State::BogusComment); */
-        $this->parseError("Invalid character '{$char}' in MarkupDeclarationStart state");
+        throw new HtmlParseException("Invalid character '{$char}' in MarkupDeclarationStart state");
     }
 
     /**
@@ -1217,8 +1205,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        /* $this->reconsume(State::BogusDoctype); */
-        $this->parseError("Invalid character '{$char}' in BetweenDoctypeAttributes state");
+        throw new HtmlParseException("Invalid character '{$char}' in BetweenDoctypeAttributes state");
     }
 
     /**

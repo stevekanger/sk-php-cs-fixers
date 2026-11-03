@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer;
 
-class HtmlOpenTag {
+class OpenTag {
     private string $name = '';
     private bool $selfClosing = false;
     private bool $hasIndent = false;

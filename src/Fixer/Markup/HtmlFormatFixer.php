@@ -17,8 +17,9 @@ use PhpCsFixer\FixerDefinition\FixerDefinition;
 use PhpCsFixer\FixerDefinition\FixerDefinitionInterface;
 use PhpCsFixer\Tokenizer\Tokens;
 use SkPhpCsFixers\Debug;
+use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer\HtmlParseException;
 use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer\HtmlTokenizer;
-use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\Tokenizer\HtmlTokens;
+use SkPhpCsFixers\Support\Markup\HtmlFormatFixer\TreeBuilder\HtmlTreeBuilder;
 use SkPhpCsFixers\Traits\TokenHelpersTrait;
 use SkPhpCsFixers\Traits\WhitespaceHelpersTrait;
 
@@ -98,14 +99,23 @@ final class HtmlFormatFixer extends AbstractFixer implements WhitespacesAwareFix
         }
     }
 
-    protected function applyFix(\SplFileInfo $file, Tokens $phpTokens): void {
-        $tokenizer = new HtmlTokenizer();
-        $htmlTokens = new HtmlTokens();
+    protected function applyFix(\SplFileInfo $file, Tokens $tokens): void {
+        try {
+            $whispaceConfig = $this->whitespacesConfig;
+            $treeBulder = new HtmlTreeBuilder();
+            $tokenizer = new HtmlTokenizer(
+                $treeBulder->add(...)
+            );
 
-        // Tokenize the inline html
-        foreach ($phpTokens as $i => $token) {
-            if ($token->isGivenKind(\T_INLINE_HTML)) {
-                $htmlTokens->add($i, $tokenizer->tokenize($token->getContent()));
+            // Tokenize the inline html tokens and send to the tree builder
+            foreach ($tokens as $i => $token) {
+                if ($token->isGivenKind(\T_INLINE_HTML)) {
+                    $tokenizer->tokenize($token->getContent());
+                }
+            }
+        } catch (\Throwable $err) {
+            if ($err instanceof HtmlParseException) {
+                error_log(' HtmlParseError: ' . $err->getMessage());
             }
         }
     }
