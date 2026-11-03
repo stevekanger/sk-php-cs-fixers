@@ -1039,7 +1039,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        throw new HtmlParseException("Invalid character {$char} in CloseTagStart state");
+        throw new HtmlParseException("Invalid character '{$char}' in CloseTagStart state");
     }
 
     /**
@@ -1068,7 +1068,7 @@ final class HtmlTokenizer {
         }
 
         if ('/' === $char) {
-            throw new HtmlParseException("Invalid character in close tag name '{$char}'");
+            throw new HtmlParseException("Invalid character '{$char}' in CloseTagName state");
         }
 
         $this->appendBuffer($char);
