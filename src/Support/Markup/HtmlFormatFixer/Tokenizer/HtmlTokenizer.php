@@ -92,26 +92,6 @@ final class HtmlTokenizer {
     ];
 
     /**
-     * Tokenizes the input string.
-     *
-     * @param string $input The string of html you want to tokenize
-     */
-    public function tokenize(string $input): void {
-        $this->reset();
-        $this->input = $input;
-        $this->len = strlen($input);
-
-        while ($this->pos < $this->len) {
-            $char = $this->getChar();
-            $this->handleCurrentChar($char);
-
-            ++$this->pos;
-        }
-
-        $this->cleanup();
-    }
-
-    /**
      * Gets the state.
      */
     public function getState(): State {
@@ -125,6 +105,258 @@ final class HtmlTokenizer {
      */
     public function setState(State $state): void {
         $this->state = $state;
+    }
+
+    /**
+     * Tokenizes the input string.
+     *
+     * @param string $input The string of html you want to tokenize
+     */
+    public function tokenize(string $input): void {
+        $this->reset();
+        $this->input = $input;
+        $this->len = strlen($input);
+
+        while ($this->pos < $this->len) {
+            $this->handleChar($this->getChar());
+
+            ++$this->pos;
+        }
+    }
+
+    /**
+     * Cleans up buffer and pending tokens after a tokenization run.
+     */
+    public function cleanup(): void {
+        // todo: handle eof final run cleanup.
+        switch ($this->state) {
+            case State::Data:
+                $this->emit(HT::Data);
+
+                break;
+            case State::BeforeData:
+                break;
+            case State::OpenTagStart:
+                // assume break involves tag name
+                $this->emitPending();
+                $this->emit(HT::OpenTagStart);
+                $this->openTag = new OpenTag();
+                $this->setState(State::OpenTagName);
+
+                break;
+            case State::OpenTagName:
+                $this->emit(HT::OpenTagName);
+
+                break;
+            case State::BetweenTagAttributes:
+                break;
+            case State::AttributeName:
+                $this->emit(HT::AttributeName);
+
+                break;
+            case State::BeforeAttributeValue:
+                break;
+            case State::AttributeValueDoubleQuoted:
+                $this->emit(HT::AttributeValue);
+
+                break;
+            case State::AttributeValueSingleQuoted:
+                $this->emit(HT::AttributeValue);
+
+                break;
+            case State::AttributeValueUnquoted:
+                $this->emit(HT::AttributeValue);
+
+                break;
+            case State::SelfClosingTagStart:
+                break;
+            case State::CloseTagStart:
+                // todo: assume break involves tag name?
+                $this->emit(HT::TagSolidus);
+                $this->setState(State::CloseTagName);
+
+                break;
+            case State::CloseTagName:
+                $this->emit(HT::CloseTagName);
+
+                break;
+            case State::MarkupDeclarationStart:
+                break;
+            case State::BetweenDoctypeAttributes:
+                break;
+            case State::DoctypeName:
+                $this->emit(HT::DoctypeName);
+
+                break;
+            case State::DoctypeIdentifierValueDoubleQuoted:
+                $this->emit(HT::DoctypeIdentifierValue);
+
+                break;
+            case State::DoctypeIdentifierValueSingleQuoted:
+                $this->emit(HT::DoctypeIdentifierValue);
+
+                break;
+            case State::BogusDoctype:
+                // todo: how to handle bogus doctype
+
+                break;
+            case State::Comment:
+                $this->emit(HT::Comment);
+
+                break;
+            case State::BogusComment:
+                $this->emit(HT::Comment);
+
+                break;
+            case State::Cdata:
+                $this->emit(HT::Cdata);
+
+                break;
+            case State::BeforeRawtext:
+                break;
+            case State::Rawtext:
+                $this->emit(HT::Rawtext);
+
+                break;
+            case State::RawtextLessThanSign:
+                break;
+            case State::RawtextCloseTagStart:
+                break;
+            case State::RawtextCloseTagName:
+                break;
+            case State::RawtextAfterCloseTagName:
+                break;
+            default:
+                return;
+        }
+    }
+
+    /**
+     * Processes the current character with the current state.
+     *
+     * @param string $char The current character
+     */
+    private function handleChar(string $char): void {
+        switch ($this->state) {
+            case State::Data:
+                $this->handleData($char);
+
+                break;
+            case State::BeforeData:
+                $this->handleBeforeData($char);
+
+                break;
+            case State::OpenTagStart:
+                $this->handleOpenTagStart($char);
+
+                break;
+            case State::OpenTagName:
+                $this->handleOpenTagName($char);
+
+                break;
+            case State::BetweenTagAttributes:
+                $this->handleBetweenTagAttributes($char);
+
+                break;
+            case State::AttributeName:
+                $this->handleAttributeName($char);
+
+                break;
+            case State::BeforeAttributeValue:
+                $this->handleBeforeAttributeValue($char);
+
+                break;
+            case State::AttributeValueDoubleQuoted:
+                $this->handleAttributeValueDoubleQuoted($char);
+
+                break;
+            case State::AttributeValueSingleQuoted:
+                $this->handleAttributeValueSingleQuoted($char);
+
+                break;
+            case State::AttributeValueUnquoted:
+                $this->handleAttributeValueUnquoted($char);
+
+                break;
+            case State::SelfClosingTagStart:
+                $this->handleSelfClosingTagStart($char);
+
+                break;
+            case State::CloseTagStart:
+                $this->handleCloseTagStart($char);
+
+                break;
+            case State::CloseTagName:
+                $this->handleCloseTagName($char);
+
+                break;
+            case State::AfterCloseTagName:
+                $this->handleAfterCloseTagName($char);
+
+                break;
+            case State::MarkupDeclarationStart:
+                $this->handleMarkupDeclarationStart($char);
+
+                break;
+            case State::BetweenDoctypeAttributes:
+                $this->handleBetweenDoctypeAttributes($char);
+
+                break;
+            case State::DoctypeName:
+                $this->handleDoctypeName($char);
+
+                break;
+            case State::DoctypeIdentifierValueDoubleQuoted:
+                $this->handleDoctypeIdentifierValueDoubleQuoted($char);
+
+                break;
+            case State::DoctypeIdentifierValueSingleQuoted:
+                $this->handleDoctypeIdentifierValueSingleQuoted($char);
+
+                break;
+            case State::BogusDoctype:
+                $this->handleBogusDoctype($char);
+
+                break;
+            case State::Comment:
+                $this->handleComment($char);
+
+                break;
+            case State::BogusComment:
+                $this->handleBogusComment($char);
+
+                break;
+            case State::Cdata:
+                $this->handleCdata($char);
+
+                break;
+            case State::BeforeRawtext:
+                $this->handleBeforeRawtext($char);
+
+                break;
+            case State::Rawtext:
+                $this->handleRawtext($char);
+
+                break;
+            case State::RawtextLessThanSign:
+                $this->handleRawtextLessThanSign($char);
+
+                break;
+            case State::RawtextCloseTagStart:
+                $this->handleRawtextCloseTagStart($char);
+
+                break;
+            case State::RawtextCloseTagName:
+                $this->handleRawtextCloseTagName($char);
+
+                break;
+            case State::RawtextAfterCloseTagName:
+                $this->handleRawtextAfterCloseTagName($char);
+
+                break;
+            default:
+                throw new \RuntimeException("HtmlTokenizer: attempt to run an undefined state {$this->state}");
+        }
     }
 
     /**
@@ -382,241 +614,6 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Processes the current character with the current state.
-     *
-     * @param string $char The current character
-     */
-    private function handleCurrentChar(string $char): void {
-        switch ($this->state) {
-            case State::Data:
-                $this->handleData($char);
-
-                break;
-            case State::BeforeData:
-                $this->handleBeforeData($char);
-
-                break;
-            case State::OpenTagStart:
-                $this->handleOpenTagStart($char);
-
-                break;
-            case State::OpenTagName:
-                $this->handleOpenTagName($char);
-
-                break;
-            case State::BetweenTagAttributes:
-                $this->handleBetweenTagAttributes($char);
-
-                break;
-            case State::AttributeName:
-                $this->handleAttributeName($char);
-
-                break;
-            case State::BeforeAttributeValue:
-                $this->handleBeforeAttributeValue($char);
-
-                break;
-            case State::AttributeValueDoubleQuoted:
-                $this->handleAttributeValueDoubleQuoted($char);
-
-                break;
-            case State::AttributeValueSingleQuoted:
-                $this->handleAttributeValueSingleQuoted($char);
-
-                break;
-            case State::AttributeValueUnquoted:
-                $this->handleAttributeValueUnquoted($char);
-
-                break;
-            case State::SelfClosingTagStart:
-                $this->handleSelfClosingTagStart($char);
-
-                break;
-            case State::CloseTagStart:
-                $this->handleCloseTagStart($char);
-
-                break;
-            case State::CloseTagName:
-                $this->handleCloseTagName($char);
-
-                break;
-            case State::AfterCloseTagName:
-                $this->handleAfterCloseTagName($char);
-
-                break;
-            case State::MarkupDeclarationStart:
-                $this->handleMarkupDeclarationStart($char);
-
-                break;
-            case State::BetweenDoctypeAttributes:
-                $this->handleBetweenDoctypeAttributes($char);
-
-                break;
-            case State::DoctypeName:
-                $this->handleDoctypeName($char);
-
-                break;
-            case State::DoctypeIdentifierValueDoubleQuoted:
-                $this->handleDoctypeIdentifierValueDoubleQuoted($char);
-
-                break;
-            case State::DoctypeIdentifierValueSingleQuoted:
-                $this->handleDoctypeIdentifierValueSingleQuoted($char);
-
-                break;
-            case State::BogusDoctype:
-                $this->handleBogusDoctype($char);
-
-                break;
-            case State::Comment:
-                $this->handleComment($char);
-
-                break;
-            case State::BogusComment:
-                $this->handleBogusComment($char);
-
-                break;
-            case State::Cdata:
-                $this->handleCdata($char);
-
-                break;
-            case State::BeforeRawtext:
-                $this->handleBeforeRawtext($char);
-
-                break;
-            case State::Rawtext:
-                $this->handleRawtext($char);
-
-                break;
-            case State::RawtextLessThanSign:
-                $this->handleRawtextLessThanSign($char);
-
-                break;
-            case State::RawtextCloseTagStart:
-                $this->handleRawtextCloseTagStart($char);
-
-                break;
-            case State::RawtextCloseTagName:
-                $this->handleRawtextCloseTagName($char);
-
-                break;
-            case State::RawtextAfterCloseTagName:
-                $this->handleRawtextAfterCloseTagName($char);
-
-                break;
-            default:
-                throw new \RuntimeException("HtmlTokenizer: attempt to run an undefined state {$this->state}");
-        }
-    }
-
-    /**
-     * Cleans up the buffer when a php block is encountered or the end of a tokenization run.
-     */
-    private function cleanup(): void {
-        // todo: handle final run cleanup.
-        switch ($this->state) {
-            case State::Data:
-                $this->emit(HT::Data);
-
-                break;
-            case State::BeforeData:
-                break;
-            case State::OpenTagStart:
-                // assume break involves tag name
-                $this->emitPending();
-                $this->emit(HT::OpenTagStart);
-                $this->openTag = new OpenTag();
-                $this->setState(State::OpenTagName);
-
-                break;
-            case State::OpenTagName:
-                $this->emit(HT::OpenTagName);
-
-                break;
-            case State::BetweenTagAttributes:
-                break;
-            case State::AttributeName:
-                $this->emit(HT::AttributeName);
-
-                break;
-            case State::BeforeAttributeValue:
-                break;
-            case State::AttributeValueDoubleQuoted:
-                $this->emit(HT::AttributeValue);
-
-                break;
-            case State::AttributeValueSingleQuoted:
-                $this->emit(HT::AttributeValue);
-
-                break;
-            case State::AttributeValueUnquoted:
-                $this->emit(HT::AttributeValue);
-
-                break;
-            case State::SelfClosingTagStart:
-                break;
-            case State::CloseTagStart:
-                // todo: assume break involves tag name?
-                $this->emit(HT::TagSolidus);
-                $this->setState(State::CloseTagName);
-
-                break;
-            case State::CloseTagName:
-                $this->emit(HT::CloseTagName);
-
-                break;
-            case State::MarkupDeclarationStart:
-                break;
-            case State::BetweenDoctypeAttributes:
-                break;
-            case State::DoctypeName:
-                $this->emit(HT::DoctypeName);
-
-                break;
-            case State::DoctypeIdentifierValueDoubleQuoted:
-                $this->emit(HT::DoctypeIdentifierValue);
-
-                break;
-            case State::DoctypeIdentifierValueSingleQuoted:
-                $this->emit(HT::DoctypeIdentifierValue);
-
-                break;
-            case State::BogusDoctype:
-                // todo: how to handle bogus doctype
-
-                break;
-            case State::Comment:
-                $this->emit(HT::Comment);
-
-                break;
-            case State::BogusComment:
-                $this->emit(HT::Comment);
-
-                break;
-            case State::Cdata:
-                $this->emit(HT::Cdata);
-
-                break;
-            case State::BeforeRawtext:
-                break;
-            case State::Rawtext:
-                $this->emit(HT::Rawtext);
-
-                break;
-            case State::RawtextLessThanSign:
-                break;
-            case State::RawtextCloseTagStart:
-                break;
-            case State::RawtextCloseTagName:
-                break;
-            case State::RawtextAfterCloseTagName:
-                break;
-            default:
-                return;
-        }
-    }
-
-    /**
      * Handle State::Data.
      *
      * Referring states and buffer contents
@@ -806,10 +803,9 @@ final class HtmlTokenizer {
             $this->appendBuffer('>');
             $this->emit(HT::OpenTagEnd);
 
-            // todo: handle case insensitive open tag names
             if (
                 $this->openTag
-                && in_array($this->openTag->getName(), self::RAWTEXT_TAGS)
+                && in_array(strtolower($this->openTag->getName()), self::RAWTEXT_TAGS)
             ) {
                 $this->setState(State::BeforeRawtext);
             } else {
@@ -884,7 +880,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        if ('/' === $char || '>' === $char) {
+        if ('>' === $char) {
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
@@ -976,8 +972,8 @@ final class HtmlTokenizer {
             return;
         }
 
-        // todo: possibly handle extra terminators " ' ` = <
-        if ('>' === $char || '/' === $char) {
+        // todo: possibly handle extra terminators " ' ` = < and maybe /
+        if ('>' === $char) {
             $this->emit(HT::AttributeValue);
             $this->reconsume(State::BetweenTagAttributes);
 
@@ -1076,6 +1072,12 @@ final class HtmlTokenizer {
         if ('>' === $char) {
             $this->emit(HT::CloseTagName);
             $this->reconsume(State::AfterCloseTagName);
+
+            return;
+        }
+
+        if ('/' === $char) {
+            $this->parseError("Invalid character in close tag name '{$char}'");
 
             return;
         }
@@ -1611,8 +1613,7 @@ final class HtmlTokenizer {
                 }
             }
 
-            // todo: case insensitve compare
-            if ($this->openTag?->getName() === $tagName) {
+            if ($this->openTag?->getName() && strtolower($this->openTag->getName()) === strtolower($tagName)) {
                 $this->emitPending();
                 $this->appendBuffer($char);
                 $this->emit(HT::CloseTagEnd);
