@@ -8,7 +8,6 @@ use SkPhpCsFixers\Traits\AsciiHelpersTrait;
 
 enum State {
     case Data;
-    case BeforeData;
     case OpenTagStart;
     case OpenTagName;
     case BetweenTagAttributes;
@@ -26,20 +25,9 @@ enum State {
     case DoctypeName;
     case DoctypeIdentifierValueDoubleQuoted;
     case DoctypeIdentifierValueSingleQuoted;
-    case BogusDoctype;
     case Comment;
-    case BogusComment;
     case Cdata;
-    case BeforeRawtext;
     case Rawtext;
-    case RawtextLessThanSign;
-    case RawtextCloseTagStart;
-    case RawtextCloseTagName;
-    case RawtextAfterCloseTagName;
-}
-
-enum ExpectedFlag {
-    case Any;
 }
 
 /**
@@ -55,7 +43,6 @@ final class HtmlTokenizer {
     private string $buffer = '';
     private int $pos = 0;
     private int $len = 0;
-    private array $tokensPending = [];
     private ?OpenTag $openTag = null;
 
     public function __construct(
@@ -113,15 +100,17 @@ final class HtmlTokenizer {
      * @param string $input The string of html you want to tokenize
      */
     public function tokenize(string $input): void {
-        $this->reset();
         $this->input = $input;
         $this->len = strlen($input);
+        $this->pos = 0;
 
         while ($this->pos < $this->len) {
             $this->handleChar($this->getChar());
 
             ++$this->pos;
         }
+
+        $this->cleanup();
     }
 
     /**
@@ -134,11 +123,8 @@ final class HtmlTokenizer {
                 $this->emit(HT::Data);
 
                 break;
-            case State::BeforeData:
-                break;
             case State::OpenTagStart:
                 // assume break involves tag name
-                $this->emitPending();
                 $this->emit(HT::OpenTagStart);
                 $this->openTag = new OpenTag();
                 $this->setState(State::OpenTagName);
@@ -181,6 +167,8 @@ final class HtmlTokenizer {
 
                 break;
             case State::MarkupDeclarationStart:
+                // todo: handle <! from buffer
+
                 break;
             case State::BetweenDoctypeAttributes:
                 break;
@@ -196,15 +184,7 @@ final class HtmlTokenizer {
                 $this->emit(HT::DoctypeIdentifierValue);
 
                 break;
-            case State::BogusDoctype:
-                // todo: how to handle bogus doctype
-
-                break;
             case State::Comment:
-                $this->emit(HT::Comment);
-
-                break;
-            case State::BogusComment:
                 $this->emit(HT::Comment);
 
                 break;
@@ -212,22 +192,16 @@ final class HtmlTokenizer {
                 $this->emit(HT::Cdata);
 
                 break;
-            case State::BeforeRawtext:
-                break;
             case State::Rawtext:
                 $this->emit(HT::Rawtext);
 
                 break;
-            case State::RawtextLessThanSign:
-                break;
-            case State::RawtextCloseTagStart:
-                break;
-            case State::RawtextCloseTagName:
-                break;
-            case State::RawtextAfterCloseTagName:
-                break;
             default:
                 return;
+        }
+
+        if ('' !== $this->buffer) {
+            throw new \RuntimeException("Buffer has remaining content '{$this->buffer}' after tokenization run.");
         }
     }
 
@@ -240,10 +214,6 @@ final class HtmlTokenizer {
         switch ($this->state) {
             case State::Data:
                 $this->handleData($char);
-
-                break;
-            case State::BeforeData:
-                $this->handleBeforeData($char);
 
                 break;
             case State::OpenTagStart:
@@ -314,61 +284,21 @@ final class HtmlTokenizer {
                 $this->handleDoctypeIdentifierValueSingleQuoted($char);
 
                 break;
-            case State::BogusDoctype:
-                $this->handleBogusDoctype($char);
-
-                break;
             case State::Comment:
                 $this->handleComment($char);
-
-                break;
-            case State::BogusComment:
-                $this->handleBogusComment($char);
 
                 break;
             case State::Cdata:
                 $this->handleCdata($char);
 
                 break;
-            case State::BeforeRawtext:
-                $this->handleBeforeRawtext($char);
-
-                break;
             case State::Rawtext:
                 $this->handleRawtext($char);
-
-                break;
-            case State::RawtextLessThanSign:
-                $this->handleRawtextLessThanSign($char);
-
-                break;
-            case State::RawtextCloseTagStart:
-                $this->handleRawtextCloseTagStart($char);
-
-                break;
-            case State::RawtextCloseTagName:
-                $this->handleRawtextCloseTagName($char);
-
-                break;
-            case State::RawtextAfterCloseTagName:
-                $this->handleRawtextAfterCloseTagName($char);
 
                 break;
             default:
                 throw new \RuntimeException("HtmlTokenizer: attempt to run an undefined state {$this->state}");
         }
-    }
-
-    /**
-     * Resets the appropriate values before a token run.
-     *
-     * This does not change the states. If you need a clean tokenizer create a new instance.
-     */
-    private function reset() {
-        // todo: possible handle buffer, pending, opentag, state
-        $this->input = '';
-        $this->pos = 0;
-        $this->len = 0;
     }
 
     /**
@@ -481,33 +411,16 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Trims the trailing whitespace from a string.
+     * Creates a token of a kind with the buffer contents and emits it immediately.
      *
-     * @param string $str The string to trim
-     *
-     * @return array{
-     *   0: string, // Trimmed string
-     *   1: string // Trimmed whitespace chars
-     * }
+     * @param HT $kind The token kind
      */
-    private function trimTrailingWhitespace(string $str): array {
-        $whitespaceChars = '';
-
-        for ($i = strlen($str) - 1; $i >= 0; --$i) {
-            $char = $str[$i];
-
-            if ($this->isAsciiWhitespace($char)) {
-                $whitespaceChars = $char . $whitespaceChars;
-            } else {
-                break;
-            }
+    private function emit(HT $kind): void {
+        if ('' === $this->buffer) {
+            return;
         }
 
-        if ('' === $whitespaceChars) {
-            return [$str, ''];
-        }
-
-        return [substr($str, 0, -strlen($whitespaceChars)), $whitespaceChars];
+        ($this->emitter)(new HtmlToken($kind, $this->flushBuffer()));
     }
 
     /**
@@ -521,87 +434,20 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Creates a token of a kind with the buffer contents and emits it immediately.
+     * Checks if a close tag matches the open tag.
      *
-     * @param HT $kind The token kind
+     * @param int $pos The position to check against
+     * @param string $tagName The expected tag name
      */
-    private function emit(HT $kind): void {
-        if (count($this->tokensPending)) {
-            $pendingContent = $this->flushPending();
-
-            throw new \RuntimeException("HtmlTokenizer: call to emit {$kind->name} with pending tokens. '{$pendingContent}'");
+    private function isMatchingCloseTag(int $pos, string $tagName): bool {
+        if (!$this->posStartsWith($pos, '</' . $tagName, true)) {
+            return false;
         }
 
-        if ('' === $this->buffer) {
-            return;
-        }
+        $pos += 2 + strlen($tagName);
+        $pos += strlen($this->getConsecutiveWhitespace($pos));
 
-        ($this->emitter)(new HtmlToken($kind, $this->flushBuffer()));
-    }
-
-    /**
-     * Emits all pending tokens.
-     */
-    private function emitPending(): void {
-        foreach ($this->tokensPending as $token) {
-            ($this->emitter)($token);
-        }
-
-        $this->tokensPending = [];
-    }
-
-    /**
-     * Adds a token to the $tokensPending array.
-     *
-     * @param HT $kind The kind of token
-     */
-    private function addPending(HT $kind): void {
-        if ('' === $this->buffer) {
-            return;
-        }
-
-        $this->tokensPending[] = new HtmlToken($kind, $this->flushBuffer());
-    }
-
-    /**
-     * Clears all pending tokens and returns their contents.
-     */
-    private function flushPending(): string {
-        $chars = '';
-
-        foreach ($this->tokensPending as $token) {
-            $chars .= $token->content;
-        }
-
-        $this->tokensPending = [];
-
-        return $chars;
-    }
-
-    /**
-     * Checks the buffer to make sure the expected characters are available.
-     *
-     * @param State $state The state
-     * @param array $expected Array of expected buffer contents
-     */
-    private function expectedBuffer(State $state, ExpectedFlag|array $expected): void {
-        if ($expected instanceof ExpectedFlag || in_array($this->buffer, $expected)) {
-            return;
-        }
-
-        $expectedContents = '[';
-
-        for ($i = 0; $i < count($expected); ++$i) {
-            $expectedContents .= $expected[$i];
-
-            if ($i !== count($expected) - 1) {
-                $expectedContents .= ', ';
-            }
-        }
-
-        $expectedContents .= ']';
-
-        throw new \RuntimeException("HtmlTokenizer: unexpected buffer contents in state {$state->name}\nExpected: {$expectedContents}\nFound: {$this->buffer}");
+        return $pos < $this->len && '>' === $this->getChar($pos);
     }
 
     /**
@@ -614,19 +460,8 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleData(string $char): void {
-        $this->expectedBuffer(State::Data, ExpectedFlag::Any);
-
         if ('<' === $char) {
-            [$data, $whitespace] = $this->trimTrailingWhitespace($this->flushBuffer());
-
-            // Pending data
-            $this->appendBuffer($data);
-            $this->addPending(HT::Data);
-
-            // Pending trailing whitespace
-            $this->appendBuffer($whitespace);
-            $this->addPending(HT::Whitespace);
-
+            $this->emit(HT::Data);
             $this->appendBuffer('<');
             $this->setState(State::OpenTagStart);
 
@@ -637,53 +472,15 @@ final class HtmlTokenizer {
     }
 
     /**
-     * Handle State::BeforeData.
-     *
-     * Referring states and buffer contents
-     * - OpenTagName: empty
-     * - CloseTagName: empty
-     * - BetweenTagAttributes: empty
-     * - SelfClosingTagStart: empty
-     * - BetweenDoctypeAttributes: empty
-     * - DoctypeName: empty
-     * - DoctypeIdentifierValueDoubleQuoted: empty
-     * - DoctypeIdentifierValueSingleQuoted: empty
-     * - BogusDoctype: empty
-     * - Comment: empty
-     * - BogusComment: empty
-     * - Cdata: empty
-     * - RawtextCloseTagName: empty
-     *
-     * @param string $char The current character
-     */
-    private function handleBeforeData(string $char): void {
-        $this->expectedBuffer(State::BeforeData, ['']);
-
-        if ($this->isAsciiWhitespace($char)) {
-            $this->emitConsecutiveWhitespace();
-
-            return;
-        }
-
-        $this->reconsume(State::Data);
-    }
-
-    /**
      * Handle State::OpenTagStart.
      *
      * Referring states and buffer contents
      * - Data: "<"
      *
-     * Pending Tokens
-     * -  ("...data", "...whitespace")
-     *
      * @param string $char The current character
      */
     private function handleOpenTagStart(string $char): void {
-        $this->expectedBuffer(State::OpenTagStart, ['<']);
-
         if ('!' === $char) {
-            $this->emitPending();
             $this->appendBuffer('!');
             $this->setState(State::MarkupDeclarationStart);
 
@@ -691,16 +488,15 @@ final class HtmlTokenizer {
         }
 
         if ('/' === $char) {
-            $this->emitPending();
             $this->emit(HT::CloseTagStart);
             $this->appendBuffer('/');
+            $this->emit(HT::TagSolidus);
             $this->setState(State::CloseTagStart);
 
             return;
         }
 
         if ($this->isAsciiAlpha($char)) {
-            $this->emitPending();
             $this->emit(HT::OpenTagStart);
             $this->openTag = new OpenTag();
             $this->reconsume(State::OpenTagName);
@@ -708,9 +504,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        $buf = $this->flushBuffer();
-        $this->appendBuffer($this->flushPending() . $buf . $char);
-        $this->setState(State::Data);
+        $this->reconsume(State::Data);
     }
 
     /**
@@ -722,8 +516,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleOpenTagName(string $char): void {
-        $this->expectedBuffer(State::OpenTagName, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emit(HT::OpenTagName);
             $this->emitConsecutiveWhitespace();
@@ -765,8 +557,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleBetweenTagAttributes(string $char): void {
-        $this->expectedBuffer(State::BetweenTagAttributes, ['']);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emitConsecutiveWhitespace();
 
@@ -798,9 +588,9 @@ final class HtmlTokenizer {
                 $this->openTag
                 && in_array(strtolower($this->openTag->getName()), self::RAWTEXT_TAGS)
             ) {
-                $this->setState(State::BeforeRawtext);
+                $this->setState(State::Rawtext);
             } else {
-                $this->setState(State::BeforeData);
+                $this->setState(State::Data);
             }
 
             return;
@@ -825,8 +615,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAttributeName(string $char): void {
-        $this->expectedBuffer(State::AttributeName, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emit(HT::AttributeName);
             $this->reconsume(State::BetweenTagAttributes);
@@ -863,8 +651,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleBeforeAttributeValue(string $char): void {
-        $this->expectedBuffer(State::BeforeAttributeValue, ['']);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->reconsume(State::BetweenTagAttributes);
 
@@ -906,8 +692,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAttributeValueDoubleQuoted(string $char): void {
-        $this->expectedBuffer(State::AttributeValueDoubleQuoted, ExpectedFlag::Any);
-
         if ('"' === $char) {
             $this->emit(HT::AttributeValue);
             $this->appendBuffer('"');
@@ -930,8 +714,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAttributeValueSingleQuoted(string $char): void {
-        $this->expectedBuffer(State::AttributeValueSingleQuoted, ExpectedFlag::Any);
-
         if ("'" === $char) {
             $this->emit(HT::AttributeValue);
             $this->appendBuffer("'");
@@ -954,8 +736,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAttributeValueUnquoted(string $char): void {
-        $this->expectedBuffer(State::AttributeValueUnquoted, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emit(HT::AttributeValue);
             $this->reconsume(State::BetweenTagAttributes);
@@ -971,7 +751,6 @@ final class HtmlTokenizer {
             return;
         }
 
-        // todo: should there be a alphanumeric check for valid unquoted value
         $this->appendBuffer($char);
     }
 
@@ -986,8 +765,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleSelfClosingTagStart(string $char): void {
-        $this->expectedBuffer(State::SelfClosingTagStart, ['']);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emitConsecutiveWhitespace();
 
@@ -998,7 +775,7 @@ final class HtmlTokenizer {
             $this->appendBuffer('>');
             $this->emit(HT::OpenTagEnd);
             $this->openTag?->setSelfClosing(true);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
@@ -1010,30 +787,24 @@ final class HtmlTokenizer {
      * Handle State::CloseTagStart.
      *
      * Referring states and buffer contents
-     * - OpenTagStart: "/"
+     * - OpenTagStart: empty
      *
      * @param string $char The current character
      */
     private function handleCloseTagStart(string $char): void {
-        $this->expectedBuffer(State::CloseTagStart, ['/']);
-
-        // todo: expected buffer flag for whitespace (right now any whitespace will throw expected error)
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::TagSolidus);
             $this->emitConsecutiveWhitespace();
 
             return;
         }
 
         if ('>' === $char) {
-            // todo: possible parse error but need to handle </<?php echo 'div'>
             $this->reconsume(State::AfterCloseTagName);
 
             return;
         }
 
         if ($this->isAsciiAlpha($char)) {
-            $this->emit(HT::TagSolidus);
             $this->reconsume(State::CloseTagName);
 
             return;
@@ -1051,8 +822,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleCloseTagName(string $char): void {
-        $this->expectedBuffer(State::CloseTagName, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emit(HT::CloseTagName);
             $this->reconsume(State::AfterCloseTagName);
@@ -1083,8 +852,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleAfterCloseTagName(string $char): void {
-        $this->expectedBuffer(State::AfterCloseTagName, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emitConsecutiveWhitespace();
 
@@ -1094,14 +861,11 @@ final class HtmlTokenizer {
         if ('>' === $char) {
             $this->appendBuffer('>');
             $this->emit(HT::CloseTagEnd);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
 
-        // todo: possible parse error
-        /* $this->appendBuffer($char); */
-        /* $this->setState(State::Data); */
         throw new HtmlParseException("Invalid character '{$char}' in CloseTagName state.");
     }
 
@@ -1114,8 +878,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleMarkupDeclarationStart(string $char): void {
-        $this->expectedBuffer(State::MarkupDeclarationStart, ['<!']);
-
         if ($this->posStartsWith($this->pos, 'doctype', true)) {
             $this->appendBuffer($this->consume(strlen('doctype')));
             $this->emit(HT::DoctypeStart);
@@ -1153,8 +915,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleBetweenDoctypeAttributes(string $char): void {
-        $this->expectedBuffer(State::BetweenDoctypeAttributes, ['']);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emitConsecutiveWhitespace();
 
@@ -1164,7 +924,7 @@ final class HtmlTokenizer {
         if ('>' === $char) {
             $this->appendBuffer('>');
             $this->emit(HT::DoctypeEnd);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
@@ -1218,8 +978,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleDoctypeName(string $char): void {
-        $this->expectedBuffer(State::DoctypeName, ExpectedFlag::Any);
-
         if ($this->isAsciiWhitespace($char)) {
             $this->emit(HT::DoctypeName);
             $this->emitConsecutiveWhitespace();
@@ -1232,7 +990,7 @@ final class HtmlTokenizer {
             $this->emit(HT::DoctypeName);
             $this->appendBuffer('>');
             $this->emit(HT::DoctypeEnd);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
@@ -1243,7 +1001,7 @@ final class HtmlTokenizer {
             return;
         }
 
-        $this->reconsume(State::BogusDoctype);
+        throw new HtmlParseException("Invalid character '{$char}' in DoctypeName state");
     }
 
     /**
@@ -1256,8 +1014,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleDoctypeIdentifierValueDoubleQuoted(string $char): void {
-        $this->expectedBuffer(State::DoctypeIdentifierValueDoubleQuoted, ExpectedFlag::Any);
-
         if ('"' === $char) {
             $this->emit(HT::DoctypeIdentifierValue);
             $this->appendBuffer('"');
@@ -1268,11 +1024,10 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            // todo: possible parse error
             $this->emit(HT::DoctypeIdentifierValue);
             $this->appendBuffer('>');
             $this->emit(HT::DoctypeEnd);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
@@ -1290,8 +1045,6 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleDoctypeIdentifierValueSingleQuoted(string $char): void {
-        $this->expectedBuffer(State::DoctypeIdentifierValueSingleQuoted, ExpectedFlag::Any);
-
         if ("'" === $char) {
             $this->emit(HT::DoctypeIdentifierValue);
             $this->appendBuffer("'");
@@ -1302,34 +1055,9 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            // todo: possible parse error
             $this->emit(HT::DoctypeIdentifierValue);
             $this->appendBuffer('>');
             $this->emit(HT::DoctypeEnd);
-            $this->setState(State::BeforeData);
-
-            return;
-        }
-
-        $this->appendBuffer($char);
-    }
-
-    /**
-     * Handle State::BogusDoctype.
-     *
-     * Referring states and buffer contents
-     * - BetweenDoctypeAttributes: "...any"
-     * - DoctypeName: "...any"
-     *
-     * @param string $char The current character
-     */
-    private function handleBogusDoctype(string $char): void {
-        $this->expectedBuffer(State::BogusDoctype, ExpectedFlag::Any);
-
-        if ('>' === $char) {
-            // todo: handle emitting buffer but really probably
-            // should just be parser error
-            $this->appendBuffer($char);
             $this->setState(State::Data);
 
             return;
@@ -1348,40 +1076,13 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleComment(string $char): void {
-        $this->expectedBuffer(State::Comment, ExpectedFlag::Any);
-
         if ('>' === $char && (
             $this->posEndsWith($this->pos, '-->')
             || $this->posEndsWith($this->pos, '--!>')
         )) {
             $this->appendBuffer($char);
             $this->emit(HT::Comment);
-            $this->setState(State::BeforeData);
-
-            return;
-        }
-
-        $this->appendBuffer($char);
-    }
-
-    /**
-     * Handle State::BogusComment.
-     *
-     * Referring states and buffer contents
-     * - OpenTagStart: "...comment"
-     * - CloseTagStart: "...comment"
-     * - MarkupDeclarationStart: "...comment"
-     * - BogusComment: "...comment"
-     *
-     * @param string $char The current character
-     */
-    private function handleBogusComment(string $char): void {
-        $this->expectedBuffer(State::BogusComment, ExpectedFlag::Any);
-
-        if ('>' === $char) {
-            $this->appendBuffer('>');
-            $this->emit(HT::Comment);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
@@ -1399,38 +1100,15 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleCdata(string $char): void {
-        $this->expectedBuffer(State::Cdata, ExpectedFlag::Any);
-
         if ($this->posStartsWith($this->pos, ']]>')) {
             $this->appendBuffer($this->consume(strlen(']]>')));
             $this->emit(HT::Cdata);
-            $this->setState(State::BeforeData);
+            $this->setState(State::Data);
 
             return;
         }
 
         $this->appendBuffer($char);
-    }
-
-    /**
-     * Handle State::BeforeRawtext.
-     *
-     * Referring states and buffer contents
-     * - BetweenTagAttributes: empty
-     *
-     * @param string $char The current character
-     */
-    private function handleBeforeRawtext(string $char): void {
-        $this->expectedBuffer(State::BeforeRawtext, ['']);
-
-        if ($this->isAsciiWhitespace($char)) {
-            $this->emitConsecutiveWhitespace();
-            $this->setState(State::Rawtext);
-
-            return;
-        }
-
-        $this->reconsume(State::Rawtext);
     }
 
     /**
@@ -1445,176 +1123,18 @@ final class HtmlTokenizer {
      * @param string $char The current character
      */
     private function handleRawtext(string $char): void {
-        $this->expectedBuffer(State::Rawtext, ExpectedFlag::Any);
+        if (
+            '<' === $char
+            && null !== $this->openTag
+            && $this->isMatchingCloseTag($this->pos, $this->openTag->getName())
+        ) {
+            $this->emit(HT::Rawtext);
+            $this->appendBuffer($char);
+            $this->setState(State::OpenTagStart);
 
-        if ('<' === $char) {
-            if ($this->openTag) {
-                [$buffer, $whitespace] = $this->trimTrailingWhitespace($this->flushBuffer());
-
-                // add pending rawtext
-                $this->appendBuffer($buffer);
-                $this->addPending(HT::Rawtext);
-
-                // add pending trailing whitespace
-                $this->appendBuffer($whitespace);
-                $this->addPending(HT::Whitespace);
-
-                // add pending close tag start
-                $this->appendBuffer($char);
-                $this->addPending(HT::CloseTagStart);
-
-                $this->setState(State::RawtextLessThanSign);
-
-                return;
-            }
+            return;
         }
 
         $this->appendBuffer($char);
-    }
-
-    /**
-     * Handle State::RawtextLessThanSign.
-     *
-     * Referring states and buffer contents
-     * - Rawtext: empty
-     *
-     * Pending Tokens
-     * - ("...rawtext", "...whitespace", "<")
-     *
-     * @param string $char The current character
-     */
-    private function handleRawtextLessThanSign(string $char): void {
-        $this->expectedBuffer(State::RawtextLessThanSign, ['']);
-
-        if ('/' === $char) {
-            $this->appendBuffer($char);
-            $this->addPending(HT::TagSolidus);
-            $this->setState(State::RawtextCloseTagStart);
-
-            return;
-        }
-
-        $this->appendBuffer($this->flushPending());
-        $this->reconsume(State::Rawtext);
-    }
-
-    /**
-     * Handle State::RawtextCloseTagStart.
-     *
-     * Referring states and buffer contents
-     * - RawtextLessThanSign: empty
-     *
-     * Pending Tokens
-     * - ("...rawtext", "<", "/", "...possibleWhitespace")
-     *
-     * @param string $char The current character
-     */
-    private function handleRawtextCloseTagStart(string $char): void {
-        $this->expectedBuffer(State::RawtextCloseTagStart, ['']);
-
-        if ($this->isAsciiWhitespace($char)) {
-            $this->appendBuffer($this->consume(strlen($this->getConsecutiveWhitespace($this->pos))));
-            $this->addPending(HT::Whitespace);
-
-            return;
-        }
-
-        if ($this->isAsciiAlpha($char)) {
-            $this->reconsume(State::RawtextCloseTagName);
-
-            return;
-        }
-
-        $this->appendBuffer($this->flushPending());
-        $this->reconsume(State::Rawtext);
-    }
-
-    /**
-     * Handle State RawtextCloseTagName.
-     *
-     * Referring states and buffer contents
-     * - RawtextCloseTagStart: empty
-     * - RawtextCloseTagName: "...name"
-     *
-     * Pending Tokens
-     * - ("...rawtext", "<", "/", "...possibleWhitespace")
-     *
-     * @param string $char The current character
-     */
-    private function handleRawtextCloseTagName(string $char): void {
-        $this->expectedBuffer(State::RawtextCloseTagName, ExpectedFlag::Any);
-
-        if ($this->isAsciiWhitespace($char)) {
-            $this->addPending(HT::CloseTagName);
-            $this->reconsume(State::RawtextAfterCloseTagName);
-
-            return;
-        }
-
-        if ($this->isAsciiAlpha($char)) {
-            $this->appendBuffer($char);
-
-            return;
-        }
-
-        if ('>' === $char) {
-            $this->addPending(HT::CloseTagName);
-            $this->reconsume(State::RawtextAfterCloseTagName);
-
-            return;
-        }
-
-        $buf = $this->flushBuffer();
-        $this->appendBuffer($this->flushPending() . $buf);
-        $this->reconsume(State::Rawtext);
-    }
-
-    /**
-     * Handle State RawtextAfterCloseTagName.
-     *
-     * Referring states and buffer contents
-     * - RawtextCloseTagName: empty
-     *
-     * Pending Tokens
-     * - ("...rawtext", "<", "/", "...possibleWhitespace", "...name", "...possibleWhitespace")
-     *
-     * @param string $char The current character
-     */
-    private function handleRawtextAfterCloseTagName(string $char): void {
-        $this->expectedBuffer(State::RawtextAfterCloseTagName, ['']);
-
-        if ($this->isAsciiWhitespace($char)) {
-            $whitespaceChars = $this->getConsecutiveWhitespace($this->pos);
-            $this->appendBuffer($this->consume(strlen($whitespaceChars)));
-            $this->addPending(HT::Whitespace);
-
-            return;
-        }
-
-        if ('>' === $char) {
-            $tagName = '';
-
-            for ($i = count($this->tokensPending) - 1; $i >= 0; --$i) {
-                if ($this->tokensPending[$i]->isGivenKind(HT::CloseTagName)) {
-                    $tagName = $this->tokensPending[$i]->content;
-                }
-            }
-
-            if ($this->openTag?->getName() && strtolower($this->openTag->getName()) === strtolower($tagName)) {
-                $this->emitPending();
-                $this->appendBuffer($char);
-                $this->emit(HT::CloseTagEnd);
-                $this->openTag = null;
-                $this->setState(State::BeforeData);
-            } else {
-                $this->appendBuffer($this->flushPending());
-                $this->reconsume(State::Rawtext);
-            }
-
-            return;
-        }
-
-        $this->appendBuffer($this->flushPending());
-        $this->reconsume(State::Rawtext);
     }
 }
