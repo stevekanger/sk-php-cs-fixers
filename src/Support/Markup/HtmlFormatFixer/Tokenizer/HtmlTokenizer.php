@@ -120,50 +120,50 @@ final class HtmlTokenizer {
         // todo: handle eof final run cleanup.
         switch ($this->state) {
             case State::Data:
-                $this->emit(HT::Data);
+                $this->emit(HT::Data, $this->flushBuffer());
 
                 break;
             case State::OpenTagStart:
                 // assume break involves tag name
-                $this->emit(HT::OpenTagStart);
+                $this->emit(HT::OpenTagStart, $this->flushBuffer());
                 $this->openTag = new OpenTag();
                 $this->setState(State::OpenTagName);
 
                 break;
             case State::OpenTagName:
-                $this->emit(HT::OpenTagName);
+                $this->emit(HT::OpenTagName, $this->flushBuffer());
 
                 break;
             case State::BetweenTagAttributes:
                 break;
             case State::AttributeName:
-                $this->emit(HT::AttributeName);
+                $this->emit(HT::AttributeName, $this->flushBuffer());
 
                 break;
             case State::BeforeAttributeValue:
                 break;
             case State::AttributeValueDoubleQuoted:
-                $this->emit(HT::AttributeValue);
+                $this->emit(HT::AttributeValue, $this->flushBuffer());
 
                 break;
             case State::AttributeValueSingleQuoted:
-                $this->emit(HT::AttributeValue);
+                $this->emit(HT::AttributeValue, $this->flushBuffer());
 
                 break;
             case State::AttributeValueUnquoted:
-                $this->emit(HT::AttributeValue);
+                $this->emit(HT::AttributeValue, $this->flushBuffer());
 
                 break;
             case State::SelfClosingTagStart:
                 break;
             case State::CloseTagStart:
                 // todo: assume break involves tag name?
-                $this->emit(HT::TagSolidus);
+                $this->emit(HT::TagSolidus, $this->flushBuffer());
                 $this->setState(State::CloseTagName);
 
                 break;
             case State::CloseTagName:
-                $this->emit(HT::CloseTagName);
+                $this->emit(HT::CloseTagName, $this->flushBuffer());
 
                 break;
             case State::MarkupDeclarationStart:
@@ -173,27 +173,27 @@ final class HtmlTokenizer {
             case State::BetweenDoctypeAttributes:
                 break;
             case State::DoctypeName:
-                $this->emit(HT::DoctypeName);
+                $this->emit(HT::DoctypeName, $this->flushBuffer());
 
                 break;
             case State::DoctypeIdentifierValueDoubleQuoted:
-                $this->emit(HT::DoctypeIdentifierValue);
+                $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
 
                 break;
             case State::DoctypeIdentifierValueSingleQuoted:
-                $this->emit(HT::DoctypeIdentifierValue);
+                $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
 
                 break;
             case State::Comment:
-                $this->emit(HT::Comment);
+                $this->emit(HT::Comment, $this->flushBuffer());
 
                 break;
             case State::Cdata:
-                $this->emit(HT::Cdata);
+                $this->emit(HT::Cdata, $this->flushBuffer());
 
                 break;
             case State::Rawtext:
-                $this->emit(HT::Rawtext);
+                $this->emit(HT::Rawtext, $this->flushBuffer());
 
                 break;
             default:
@@ -383,6 +383,22 @@ final class HtmlTokenizer {
     }
 
     /**
+     * Gets the consecutive ascii alpha numeric characters starting at pos.
+     *
+     * @param int $pos The position to start at
+     */
+    private function getConsecutiveAlphanumeric(int $pos): string {
+        $chars = '';
+
+        while ($pos < $this->len && $this->isAsciiAlphanumeric($this->getChar($pos))) {
+            $chars .= $this->getChar($pos);
+            ++$pos;
+        }
+
+        return $chars;
+    }
+
+    /**
      * Checks if a substring starts with.
      *
      * @param int $pos
@@ -414,23 +430,22 @@ final class HtmlTokenizer {
      * Creates a token of a kind with the buffer contents and emits it immediately.
      *
      * @param HT $kind The token kind
+     * @param string $content The content
      */
-    private function emit(HT $kind): void {
-        if ('' === $this->buffer) {
+    private function emit(HT $kind, string $content): void {
+        if ('' === $content) {
             return;
         }
 
-        ($this->emitter)(new HtmlToken($kind, $this->flushBuffer()));
+        ($this->emitter)(new HtmlToken($kind, $content));
     }
 
     /**
      * Consumes and emits all whitespace until next non whitespace character.
      */
-    private function emitConsecutiveWhitespace() {
+    private function emitConsecutiveWhitespace(): void {
         $whitespace = $this->getConsecutiveWhitespace($this->pos);
-        $this->appendBuffer($this->consume(strlen($whitespace)));
-
-        $this->emit(HT::Whitespace);
+        $this->emit(HT::Whitespace, $this->consume(strlen($whitespace)));
     }
 
     /**
@@ -461,7 +476,7 @@ final class HtmlTokenizer {
      */
     private function handleData(string $char): void {
         if ('<' === $char) {
-            $this->emit(HT::Data);
+            $this->emit(HT::Data, $this->flushBuffer());
             $this->appendBuffer('<');
             $this->setState(State::OpenTagStart);
 
@@ -476,6 +491,7 @@ final class HtmlTokenizer {
      *
      * Referring states and buffer contents
      * - Data: "<"
+     * - Rawtext: "<"
      *
      * @param string $char The current character
      */
@@ -488,16 +504,15 @@ final class HtmlTokenizer {
         }
 
         if ('/' === $char) {
-            $this->emit(HT::CloseTagStart);
-            $this->appendBuffer('/');
-            $this->emit(HT::TagSolidus);
+            $this->emit(HT::CloseTagStart, $this->flushBuffer());
+            $this->emit(HT::TagSolidus, $char);
             $this->setState(State::CloseTagStart);
 
             return;
         }
 
         if ($this->isAsciiAlpha($char)) {
-            $this->emit(HT::OpenTagStart);
+            $this->emit(HT::OpenTagStart, $this->flushBuffer());
             $this->openTag = new OpenTag();
             $this->reconsume(State::OpenTagName);
 
@@ -517,7 +532,7 @@ final class HtmlTokenizer {
      */
     private function handleOpenTagName(string $char): void {
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::OpenTagName);
+            $this->emit(HT::OpenTagName, $this->flushBuffer());
             $this->emitConsecutiveWhitespace();
             $this->setState(State::BetweenTagAttributes);
 
@@ -525,14 +540,14 @@ final class HtmlTokenizer {
         }
 
         if ('/' === $char) {
-            $this->emit(HT::OpenTagName);
+            $this->emit(HT::OpenTagName, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
         }
 
         if ('>' === $char) {
-            $this->emit(HT::OpenTagName);
+            $this->emit(HT::OpenTagName, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
@@ -564,25 +579,24 @@ final class HtmlTokenizer {
         }
 
         if ('=' === $char) {
-            $this->appendBuffer('=');
-            $this->emit(HT::AttributeEquals);
+            $this->emit(HT::AttributeEquals, $char);
             $this->setState(State::BeforeAttributeValue);
 
             return;
         }
 
         if ('/' === $char) {
-            $this->emit(HT::AttributeName);
-            $this->appendBuffer('/');
-            $this->emit(HT::TagSolidus);
+            // check if I should emit buffer here I think it should be empty
+            $this->emit(HT::AttributeName, $this->flushBuffer());
+
+            $this->emit(HT::TagSolidus, $char);
             $this->setState(State::SelfClosingTagStart);
 
             return;
         }
 
         if ('>' === $char) {
-            $this->appendBuffer('>');
-            $this->emit(HT::OpenTagEnd);
+            $this->emit(HT::OpenTagEnd, $char);
 
             if (
                 $this->openTag
@@ -616,23 +630,22 @@ final class HtmlTokenizer {
      */
     private function handleAttributeName(string $char): void {
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::AttributeName);
+            $this->emit(HT::AttributeName, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
         }
 
         if ('/' === $char || '>' === $char) {
-            $this->emit(HT::AttributeName);
+            $this->emit(HT::AttributeName, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
         }
 
         if ('=' === $char) {
-            $this->emit(HT::AttributeName);
-            $this->appendBuffer('=');
-            $this->emit(HT::AttributeEquals);
+            $this->emit(HT::AttributeName, $this->flushBuffer());
+            $this->emit(HT::AttributeEquals, $char);
             $this->setState(State::BeforeAttributeValue);
 
             return;
@@ -664,16 +677,14 @@ final class HtmlTokenizer {
         }
 
         if ('"' === $char) {
-            $this->appendBuffer('"');
-            $this->emit(HT::AttributeQuote);
+            $this->emit(HT::AttributeQuote, $char);
             $this->setState(State::AttributeValueDoubleQuoted);
 
             return;
         }
 
         if ("'" === $char) {
-            $this->appendBuffer("'");
-            $this->emit(HT::AttributeQuote);
+            $this->emit(HT::AttributeQuote, $char);
             $this->setState(State::AttributeValueSingleQuoted);
 
             return;
@@ -693,9 +704,8 @@ final class HtmlTokenizer {
      */
     private function handleAttributeValueDoubleQuoted(string $char): void {
         if ('"' === $char) {
-            $this->emit(HT::AttributeValue);
-            $this->appendBuffer('"');
-            $this->emit(HT::AttributeQuote);
+            $this->emit(HT::AttributeValue, $this->flushBuffer());
+            $this->emit(HT::AttributeQuote, $char);
             $this->setState(State::BetweenTagAttributes);
 
             return;
@@ -715,9 +725,8 @@ final class HtmlTokenizer {
      */
     private function handleAttributeValueSingleQuoted(string $char): void {
         if ("'" === $char) {
-            $this->emit(HT::AttributeValue);
-            $this->appendBuffer("'");
-            $this->emit(HT::AttributeQuote);
+            $this->emit(HT::AttributeValue, $this->flushBuffer());
+            $this->emit(HT::AttributeQuote, $char);
             $this->setState(State::BetweenTagAttributes);
 
             return;
@@ -737,7 +746,7 @@ final class HtmlTokenizer {
      */
     private function handleAttributeValueUnquoted(string $char): void {
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::AttributeValue);
+            $this->emit(HT::AttributeValue, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
@@ -745,7 +754,7 @@ final class HtmlTokenizer {
 
         // todo: possibly handle extra terminators " ' ` = < and maybe /
         if ('>' === $char) {
-            $this->emit(HT::AttributeValue);
+            $this->emit(HT::AttributeValue, $this->flushBuffer());
             $this->reconsume(State::BetweenTagAttributes);
 
             return;
@@ -760,7 +769,6 @@ final class HtmlTokenizer {
      * Referring states and buffer contents
      * - OpenTagName: empty
      * - BetweenTagAttributes: empty
-     * - RawtextCloseTagName: empty
      *
      * @param string $char The current character
      */
@@ -772,8 +780,7 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            $this->appendBuffer('>');
-            $this->emit(HT::OpenTagEnd);
+            $this->emit(HT::OpenTagEnd, $char);
             $this->openTag?->setSelfClosing(true);
             $this->setState(State::Data);
 
@@ -823,14 +830,14 @@ final class HtmlTokenizer {
      */
     private function handleCloseTagName(string $char): void {
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::CloseTagName);
+            $this->emit(HT::CloseTagName, $this->flushBuffer());
             $this->reconsume(State::AfterCloseTagName);
 
             return;
         }
 
         if ('>' === $char) {
-            $this->emit(HT::CloseTagName);
+            $this->emit(HT::CloseTagName, $this->flushBuffer());
             $this->reconsume(State::AfterCloseTagName);
 
             return;
@@ -859,8 +866,7 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            $this->appendBuffer('>');
-            $this->emit(HT::CloseTagEnd);
+            $this->emit(HT::CloseTagEnd, $char);
             $this->setState(State::Data);
 
             return;
@@ -880,7 +886,7 @@ final class HtmlTokenizer {
     private function handleMarkupDeclarationStart(string $char): void {
         if ($this->posStartsWith($this->pos, 'doctype', true)) {
             $this->appendBuffer($this->consume(strlen('doctype')));
-            $this->emit(HT::DoctypeStart);
+            $this->emit(HT::DoctypeStart, $this->flushBuffer());
             $this->setState(State::BetweenDoctypeAttributes);
 
             return;
@@ -922,49 +928,41 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            $this->appendBuffer('>');
-            $this->emit(HT::DoctypeEnd);
+            $this->emit(HT::DoctypeEnd, $char);
             $this->setState(State::Data);
 
             return;
         }
 
         if ('"' === $char) {
-            $this->appendBuffer('"');
-            $this->emit(HT::DoctypeIdentifierQuote);
+            $this->emit(HT::DoctypeIdentifierQuote, $char);
             $this->setState(State::DoctypeIdentifierValueDoubleQuoted);
 
             return;
         }
 
         if ("'" === $char) {
-            $this->appendBuffer("'");
-            $this->emit(HT::DoctypeIdentifierQuote);
+            $this->emit(HT::DoctypeIdentifierQuote, $char);
             $this->setState(State::DoctypeIdentifierValueSingleQuoted);
 
             return;
         }
 
-        if ($this->posStartsWith($this->pos, 'public', true)) {
-            $this->appendBuffer($this->consume(strlen('public')));
-            $this->emit(HT::DoctypeIdentifierName);
+        if ($this->isAsciiAlphanumeric($char)) {
+            $chars = strtolower($this->getConsecutiveAlphanumeric($this->pos));
 
-            return;
-        }
+            if ('system' === $chars || 'public' === $chars) {
+                $this->emit(HT::DoctypeIdentifierName, $this->consume(strlen($chars)));
 
-        if ($this->posStartsWith($this->pos, 'system', true)) {
-            $this->appendBuffer($this->consume(strlen('system')));
-            $this->emit(HT::DoctypeIdentifierName);
+                return;
+            }
 
-            return;
-        }
-
-        if ($this->isAsciiAlpha($char)) {
             $this->reconsume(State::DoctypeName);
 
             return;
         }
 
+        // todo: possible allow for all chars to be part of doctype identifier
         throw new HtmlParseException("Invalid character '{$char}' in BetweenDoctypeAttributes state");
     }
 
@@ -979,7 +977,7 @@ final class HtmlTokenizer {
      */
     private function handleDoctypeName(string $char): void {
         if ($this->isAsciiWhitespace($char)) {
-            $this->emit(HT::DoctypeName);
+            $this->emit(HT::DoctypeName, $this->flushBuffer());
             $this->emitConsecutiveWhitespace();
             $this->setState(State::BetweenDoctypeAttributes);
 
@@ -987,20 +985,20 @@ final class HtmlTokenizer {
         }
 
         if ('>' === $char) {
-            $this->emit(HT::DoctypeName);
-            $this->appendBuffer('>');
-            $this->emit(HT::DoctypeEnd);
+            $this->emit(HT::DoctypeName, $this->flushBuffer());
+            $this->emit(HT::DoctypeEnd, $char);
             $this->setState(State::Data);
 
             return;
         }
 
-        if ($this->isAsciiAlpha($char)) {
+        if ($this->isAsciiAlphanumeric($char)) {
             $this->appendBuffer($char);
 
             return;
         }
 
+        // todo: possible allow for all chars to be part of doctype name
         throw new HtmlParseException("Invalid character '{$char}' in DoctypeName state");
     }
 
@@ -1015,18 +1013,16 @@ final class HtmlTokenizer {
      */
     private function handleDoctypeIdentifierValueDoubleQuoted(string $char): void {
         if ('"' === $char) {
-            $this->emit(HT::DoctypeIdentifierValue);
-            $this->appendBuffer('"');
-            $this->emit(HT::DoctypeIdentifierQuote);
+            $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
+            $this->emit(HT::DoctypeIdentifierQuote, $char);
             $this->setState(State::BetweenDoctypeAttributes);
 
             return;
         }
 
         if ('>' === $char) {
-            $this->emit(HT::DoctypeIdentifierValue);
-            $this->appendBuffer('>');
-            $this->emit(HT::DoctypeEnd);
+            $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
+            $this->emit(HT::DoctypeEnd, $char);
             $this->setState(State::Data);
 
             return;
@@ -1046,18 +1042,16 @@ final class HtmlTokenizer {
      */
     private function handleDoctypeIdentifierValueSingleQuoted(string $char): void {
         if ("'" === $char) {
-            $this->emit(HT::DoctypeIdentifierValue);
-            $this->appendBuffer("'");
-            $this->emit(HT::DoctypeIdentifierQuote);
+            $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
+            $this->emit(HT::DoctypeIdentifierQuote, $char);
             $this->setState(State::BetweenDoctypeAttributes);
 
             return;
         }
 
         if ('>' === $char) {
-            $this->emit(HT::DoctypeIdentifierValue);
-            $this->appendBuffer('>');
-            $this->emit(HT::DoctypeEnd);
+            $this->emit(HT::DoctypeIdentifierValue, $this->flushBuffer());
+            $this->emit(HT::DoctypeEnd, $char);
             $this->setState(State::Data);
 
             return;
@@ -1081,7 +1075,7 @@ final class HtmlTokenizer {
             || $this->posEndsWith($this->pos, '--!>')
         )) {
             $this->appendBuffer($char);
-            $this->emit(HT::Comment);
+            $this->emit(HT::Comment, $this->flushBuffer());
             $this->setState(State::Data);
 
             return;
@@ -1102,7 +1096,7 @@ final class HtmlTokenizer {
     private function handleCdata(string $char): void {
         if ($this->posStartsWith($this->pos, ']]>')) {
             $this->appendBuffer($this->consume(strlen(']]>')));
-            $this->emit(HT::Cdata);
+            $this->emit(HT::Cdata, $this->flushBuffer());
             $this->setState(State::Data);
 
             return;
@@ -1115,9 +1109,6 @@ final class HtmlTokenizer {
      * Handle State::Rawtext.
      *
      * Referring states and buffer contents
-     * - RawtextLessThanSign: "...rawtext"
-     * - RawtextCloseTagStart: "...rawtext"
-     * - RawtextCloseTagName: "...rawtext"
      * - Rawtext: "...rawtext"
      *
      * @param string $char The current character
@@ -1128,7 +1119,7 @@ final class HtmlTokenizer {
             && null !== $this->openTag
             && $this->isMatchingCloseTag($this->pos, $this->openTag->getName())
         ) {
-            $this->emit(HT::Rawtext);
+            $this->emit(HT::Rawtext, $this->flushBuffer());
             $this->appendBuffer($char);
             $this->setState(State::OpenTagStart);
 
